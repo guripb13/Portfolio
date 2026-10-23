@@ -40,13 +40,46 @@ html[data-theme="light"] {
   --color-mist: #4b5574;
 }
 
+/* Used for one instant while the theme code measures which elements change colour */
+html.theme-measure,
+html.theme-measure *,
+html.theme-measure *::before,
+html.theme-measure *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 /* Smooth colour cross-fade during theme toggle (skipped for reduced motion) */
 html.theme-switching,
 html.theme-switching *,
 html.theme-switching *::before,
 html.theme-switching *::after {
-  transition: background-color 0.45s ease, border-color 0.45s ease, color 0.45s ease, fill 0.45s ease, stroke 0.45s ease, box-shadow 0.45s ease !important;
+  transition:
+    background-color var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1),
+    border-color     var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1),
+    color            var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1),
+    fill             var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1),
+    stroke           var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow       var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
+
+/* Whole-screen blur: one fixed frosted layer that breathes in and out while the colours change underneath */
+@keyframes theme-screen-blur {
+  0%   { -webkit-backdrop-filter: blur(0);   backdrop-filter: blur(0); }
+  30%  { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(1px); }
+  50%  { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(2px); }
+  70%  { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(1px); }
+  100% { -webkit-backdrop-filter: blur(0);   backdrop-filter: blur(0); }
+}
+html.theme-switching::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;      /* above everything, including the cursor and modals */
+  pointer-events: none;     /* never blocks clicks */
+  animation: theme-screen-blur var(--theme-ms, 900ms) ease-in-out both;
+}
+
 
 html {
   scroll-padding-top: 6rem;
@@ -176,6 +209,11 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.02; letter-spacing
   }
   header nav.glass::before {
     display: none;
+  }
+
+  .nav-row {
+    --nav-gap: 1rem;
+    column-gap: calc(var(--nav-gap) + 2px);
   }
 
   /* ───────── Gemini Rainbow Glow & Conic Gradient Border ───────── */
@@ -375,7 +413,7 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.02; letter-spacing
 }
 
 /* ───────── Custom cursor ───────── */
-@media (pointer: fine) and (min-width: 768px) { html.has-cursor, html.has-cursor * { cursor: none !important; } }
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) { html.has-cursor, html.has-cursor * { cursor: none !important; } }
 .cursor-glow, .cursor-ring {
   position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none; border-radius: 50%;
   translate: -50% -50%; will-change: transform;
@@ -488,8 +526,9 @@ html[data-nav-gliding] .cursor-ring {
 }
 .cursor-dot { position: fixed; left: 0; top: 0; z-index: 91; width: 6px; height: 6px; border-radius: 50%; background: #fff; pointer-events: none; translate: -50% -50%; }
 
-/* Completely remove cursor blue circle and cursor elements in only mobile view (< 768px) */
-@media (max-width: 767px) {
+/* Completely remove the cursor ring, glow and dot on phones and tablets:
+   phone-sized windows, and any device whose main input is touch */
+@media (max-width: 767px), (hover: none), (pointer: coarse) {
   .cursor-glow,
   .cursor-ring,
   .cursor-dot {
@@ -542,19 +581,31 @@ html[data-nav-gliding] .cursor-ring {
   .bd-kenburns { animation: none; }
 }
 
-/* ───────── Loading screen ───────── */
-.ld-track { position: relative; height: 4px; border-radius: 999px; background: rgb(255 255 255 / .08); overflow: hidden; }
-.ld-bar {
-  position: absolute; inset: 0; border-radius: inherit;
-  transform-origin: left center; transform: scaleX(0); will-change: transform;
-  background: linear-gradient(90deg, var(--color-deep-blue), var(--color-neon), var(--color-neon-soft));
-  box-shadow: 0 0 14px rgb(var(--accent) / .7);
+/* ───────── Loading screen (progress border + liquid) ───────── */
+.ld-base-ring {
+  stroke: rgba(255, 255, 255, 0.12);
 }
-@keyframes ld-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-.ld-dot { animation: ld-pulse 1.6s ease-in-out infinite; }
-@keyframes ld-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.ld-rise { animation: ld-rise .7s var(--ease-out-expo) both; }
-@media (prefers-reduced-motion: reduce) { .ld-dot, .ld-rise { animation: none; } }
+html[data-theme="light"] .ld-base-ring {
+  stroke: rgba(37, 99, 235, 0.16);
+}
+
+.ld-ring {
+  stroke: var(--color-neon-soft);
+  filter: drop-shadow(0 0 5px rgb(var(--accent) / .95)) drop-shadow(0 0 14px rgb(var(--accent) / .65));
+}
+.ld-head {
+  fill: #fff;
+  filter: drop-shadow(0 0 6px var(--color-neon-soft)) drop-shadow(0 0 14px rgb(var(--accent)));
+}
+html[data-theme="light"] .ld-head { fill: var(--color-neon); }
+
+@keyframes ld-wave-x { to { transform: translateX(60px); } }   /* 60 = one wavelength */
+.ld-wave-a { animation: ld-wave-x 2.4s linear infinite; }
+.ld-wave-b { animation: ld-wave-x 3.8s linear infinite reverse; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-wave-a, .ld-wave-b { animation: none; }
+}
 
 .cursor-ring { contain: layout style; }
 
@@ -719,7 +770,7 @@ html.lite-mode textarea {
 /* Back-to-Home button: single slow orbiting border glow once fully out */
 @property --btn-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
 @keyframes btn-orbit { from { --btn-angle: 0deg; } to { --btn-angle: 90deg; } }
-@keyframes btn-glow-life { 0% { opacity: 0; } 14% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes btn-glow-life { 0% { opacity: 0; } 14% { opacity: var(--glow-peak, 1); } 78% { opacity: var(--glow-peak, 1); } 100% { opacity: 0; } }
 
 .top-btn-ring,
 .top-btn-halo {
@@ -740,8 +791,8 @@ html.lite-mode textarea {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-.top-btn-ring { inset: -1px; padding: 1.5px; }
-.top-btn-halo { inset: -4px; padding: 4px; filter: blur(9px); }
+.top-btn-ring { inset: -1px; padding: 1.5px; --glow-peak: 0.6; }
+.top-btn-halo { inset: -4px; padding: 4px; filter: blur(7px); --glow-peak: 0.3; }
 .top-btn.is-glow .top-btn-ring,
 .top-btn.is-glow .top-btn-halo {
   animation:
@@ -859,6 +910,8 @@ html[data-theme="light"] .btn-ghost {
 html[data-theme="light"] .btn-ghost:hover {
   background: linear-gradient(140deg, rgba(255, 255, 255, 0.98) 0%, rgba(234, 243, 255, 0.92) 100%) !important;
   border-color: rgba(37, 99, 235, 0.28) !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
 }
 
 /* Typography contrast adjustments in light mode */
@@ -992,4 +1045,136 @@ html[data-theme="light"] .skip-link {
   .viewer-controls-bar {
     transition: none !important;
   }
+}
+
+/* Mobile: subtle ambient aura opacity */
+@media (max-width: 767px) {
+  .gemini-aura-ambient {
+    opacity: 0.12 !important;
+  }
+}
+
+/* ═════════ LIGHT MODE: hover and contrast fixes ═════════ */
+html[data-theme="light"] {
+  --lm-ink: #0e1326;          /* main dark text */
+  --lm-link: #1d4ed8;         /* accent text */
+  --lm-tint: 37 99 235;       /* accent as r g b, for fills and borders */
+  --color-neon-soft: #1d4ed8; /* was #3b82f6, too faint for small text */
+}
+
+/* Text selection was white on pale blue */
+html[data-theme="light"] ::selection {
+  background: rgb(var(--lm-tint) / .22);
+  color: var(--lm-ink);
+}
+
+/* Resting colours of chips and badges */
+html[data-theme="light"] .bg-white\/5,
+html[data-theme="light"] .bg-white\/\[0\.06\],
+html[data-theme="light"] .bg-white\/\[0\.07\],
+html[data-theme="light"] .bg-white\/\[0\.08\] {
+  background-color: rgb(var(--lm-tint) / .06) !important;
+}
+
+html[data-theme="light"] .bg-white\/10 {
+  background-color: rgb(var(--lm-tint) / .09) !important;
+}
+html[data-theme="light"] .border-white\/5 {
+  border-color: rgb(var(--lm-tint) / .10) !important;
+}
+html[data-theme="light"] .bg-white\/25 {
+  background-color: rgb(14 19 38 / .25) !important;
+}
+
+/* Hover states (the white-text bug fix) */
+@media (hover: hover) {
+  /* Text that turned white now stays dark */
+  html[data-theme="light"] .hover\:text-white:hover {
+    color: var(--lm-ink) !important;
+  }
+
+  html[data-theme="light"] .group:hover .group-hover\:text-white,
+  html[data-theme="light"] .group\/edu:hover .group-hover\/edu\:text-white,
+  html[data-theme="light"] .group\/stat:hover .group-hover\/stat\:text-white {
+    color: var(--lm-ink) !important;
+  }
+
+  /* Interactive chips and badges on hover */
+  html[data-theme="light"] .hover\:bg-white\/\[0\.08\]:hover,
+  html[data-theme="light"] .hover\:bg-white\/\[0\.14\]:hover,
+  html[data-theme="light"] .hover\:bg-white\/\[0\.16\]:hover,
+  html[data-theme="light"] .hover\:bg-white\/10:hover,
+  html[data-theme="light"] .hover\:bg-white\/20:hover {
+    background-color: rgb(var(--lm-tint) / .14) !important;
+  }
+
+  html[data-theme="light"] .hover\:border-white\/20:hover,
+  html[data-theme="light"] .hover\:border-white\/30:hover {
+    border-color: rgb(var(--lm-tint) / .32) !important;
+  }
+
+  html[data-theme="light"] .hover\:bg-white\/50:hover {
+    background-color: rgb(14 19 38 / .45) !important;
+  }
+
+  html[data-theme="light"] .ab-chip:hover {
+    background-color: rgb(var(--lm-tint) / .14) !important;
+    border-color: rgb(var(--lm-tint) / .30) !important;
+    color: var(--lm-ink) !important;
+  }
+
+  html[data-theme="light"] .group\/edu:hover {
+    background-color: rgb(var(--lm-tint) / .16) !important;
+    border-color: rgb(var(--lm-tint) / .32) !important;
+    color: var(--lm-ink) !important;
+  }
+
+  html[data-theme="light"] .group\/stat:hover {
+    background-color: rgb(var(--lm-tint) / .09) !important;
+    border-color: rgb(var(--lm-tint) / .30) !important;
+  }
+
+  /* Keep filled primary buttons with crisp white text */
+  html[data-theme="light"] .btn:not(.btn-ghost):hover {
+    color: #ffffff !important;
+  }
+
+  /* Ghost buttons & top header buttons: bold black on hover in light mode */
+  html[data-theme="light"] .btn-ghost:hover,
+  html[data-theme="light"] .btn-ghost:hover span,
+  html[data-theme="light"] section#top button:hover,
+  html[data-theme="light"] section#top button:hover span {
+    color: #000000 !important;
+    font-weight: 700 !important;
+  }
+  html[data-theme="light"] section#top button:hover .bg-white\/40 {
+    background-color: #000000 !important;
+  }
+}
+
+/* Smooth transitions for interactive elements */
+html[data-theme="light"] .ab-chip,
+html[data-theme="light"] .ab-line {
+  transition: background-color .25s ease, border-color .25s ease, color .25s ease;
+}
+
+/* Light mode: small cursor dot white → black */
+html[data-theme="light"] .cursor-dot {
+  background: #000000;
+}
+
+/* Top bar side buttons (Theme / Get in touch): same width => nav centred, both gaps equal */
+.hdr-btn {
+  width: 10rem;               /* change this one value to resize both buttons */
+  justify-content: center;
+  white-space: nowrap;
+  padding: .7rem 1rem !important;
+  font-size: .875rem;
+  pointer-events: auto;
+}
+
+/* Tablet widths: round icon buttons, so the back-to-top button has room beside the pill */
+@media (max-width: 1023px) {
+  .hdr-btn { width: 2.75rem; height: 2.75rem; padding: 0 !important; }
+  .hdr-btn > span.font-medium { display: none; }
 }

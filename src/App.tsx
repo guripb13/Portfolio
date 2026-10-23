@@ -88,10 +88,8 @@ export default function App({ isAppLoaded = false }: { isAppLoaded?: boolean }) 
 
       {/* Main page wrapper that slides left when viewer opens */}
       <div
-        className={`w-full min-h-screen ${
-          viewerOpen
-            ? 'transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] -translate-x-[25%] pointer-events-none'
-            : ''
+        className={`w-full min-h-screen transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          viewerOpen ? '-translate-x-[25%] pointer-events-none' : ''
         }`}
         style={pageHidden ? { visibility: 'hidden' } : undefined}
       >

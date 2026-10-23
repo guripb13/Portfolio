@@ -5,7 +5,7 @@ const GLOW = 'radial-gradient(circle 20rem at 0% 0%, rgb(61 139 255 / .68) 0%, r
 
 /** Project cover: the screenshot if there is one, otherwise a dark panel with the top-left glow. Fills its (relative) parent. */
 export default function ProjectArt({ p }: { p: Project }) {
-  if (p.image) return <img src={p.image} alt={`${p.title} preview`} className="absolute inset-0 h-full w-full object-cover" />
+  if (p.image) return <img src={p.image} alt={`${p.title} preview`} className="absolute inset-0 h-full w-full object-cover object-center" />
   return (
     <div className="absolute inset-0 bg-[#0a0d1f]" aria-hidden="true">
       <div className="absolute inset-0 transition-opacity duration-500 group-hover:opacity-0" style={{ background: GLOW }} />

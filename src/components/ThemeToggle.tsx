@@ -1,4 +1,5 @@
-import { useTheme, toggleTheme } from '../lib/theme'
+import { useEffect, useState } from 'react'
+import { useTheme, toggleTheme, THEME_FX_MS } from '../lib/theme'
 
 interface ThemeToggleProps {
   className?: string
@@ -9,17 +10,27 @@ export default function ThemeToggle({ className = '', compact = false }: ThemeTo
   const theme = useTheme()
   const isDark = theme === 'dark'
 
+  // The icon + label swap when the blur is at its peak, so the change happens "inside" the blur
+  const [shownTheme, setShownTheme] = useState(theme)
+  useEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        const id = window.setTimeout(() => setShownTheme(theme), reduced ? 0 : THEME_FX_MS / 2)
+    return () => window.clearTimeout(id)
+  }, [theme])
+  const shownDark = shownTheme === 'dark'
+
   return (
     <button
       type="button"
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       aria-pressed={!isDark}
       data-magnetic
+      data-theme-toggle
       onClick={toggleTheme}
-      className={`hero-fade btn btn-ghost pointer-events-auto backdrop-blur-md items-center gap-2.5 border border-white/15 hover:border-white/30 transition-all duration-300 ${className}`}
+      className={`hero-fade btn btn-ghost pointer-events-auto backdrop-blur-md items-center gap-2 border border-white/15 hover:border-white/30 ${className}`}
     >
       <span className="relative flex items-center justify-center size-4" aria-hidden="true">
-        {isDark ? (
+        {shownDark ? (
           // Moon icon
           <svg
             className="size-3.5 text-neon-soft transition-transform duration-300"
@@ -56,7 +67,7 @@ export default function ThemeToggle({ className = '', compact = false }: ThemeTo
         )}
       </span>
       <span className="font-medium tracking-wide">
-        {compact ? (isDark ? 'Dark' : 'Light') : (isDark ? 'Theme: Dark' : 'Theme: Light')}
+        {compact ? (shownDark ? 'Dark' : 'Light') : (shownDark ? 'Theme: Dark' : 'Theme: Light')}
       </span>
     </button>
   )

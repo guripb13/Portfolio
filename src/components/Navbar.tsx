@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useLenis } from 'lenis/react'
 import { gsap, useGSAP } from '../lib/gsap'
 import { throttle } from '../lib/perf'
+import ThemeToggle from './ThemeToggle'
 
 const links = [
   { id: 'about', label: 'About' },
@@ -1092,128 +1093,151 @@ export default function Navbar({ isHidden = false }: NavbarProps) {
       )}
 
       <header
-        className={`fixed inset-x-0 top-4 z-50 flex justify-center px-4 pt-[env(safe-area-inset-top)] pointer-events-none transition-all duration-300 ${
+        className={`fixed inset-x-0 top-4 z-50 px-4 md:px-8 pt-[env(safe-area-inset-top)] pointer-events-none transition-all duration-300 ${
           isHidden ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'
         }`}
       >
-        {/* Wrapper keeps nav perfectly centered while anchoring the back-to-top fluid emergence on the left */}
-        <div ref={entrance} className="relative">
-          {/* DESKTOP: Back to Home button */}
-          {!isMobile && (
-            <div
-              ref={btnWrapperRef}
-              className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-20"
-            >
-              <button
-                ref={buttonRef}
-                type="button"
-                data-magnetic
-                tabIndex={-1}
-                aria-hidden="true"
-                aria-label="Back to top"
-                title="Back to top"
-                onClick={handleBackToTop}
-                className="group/top-btn top-btn pointer-events-auto relative flex items-center justify-center rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 w-[36px] h-[36px] sm:w-[44px] sm:h-[44px]"
-              >
-                <span aria-hidden="true" className="top-btn-ring" />
-                <span aria-hidden="true" className="top-btn-halo" />
-                <svg
-                  ref={arrowIconRef}
-                  className="w-[18px] h-[18px] text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center md:grid-cols-[1fr_auto_1fr]">
+          {/* LEFT: theme */}
+          <div className="hidden md:flex justify-start">
+            <ThemeToggle className="hdr-btn" />
+          </div>
+
+          {/* CENTRE: the nav pill */}
+          <div className="justify-self-center">
+            <div ref={entrance} className="relative">
+              {/* DESKTOP: Back to Home button */}
+              {!isMobile && (
+                <div
+                  ref={btnWrapperRef}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-20"
                 >
-                  <path className="top-arrow-path" d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
-              </button>
-            </div>
-          )}
+                  <button
+                    ref={buttonRef}
+                    type="button"
+                    data-magnetic
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    aria-label="Back to top"
+                    title="Back to top"
+                    onClick={handleBackToTop}
+                    className="group/top-btn top-btn pointer-events-auto relative flex items-center justify-center rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 w-[36px] h-[36px] sm:w-[44px] sm:h-[44px]"
+                  >
+                    <span aria-hidden="true" className="top-btn-ring" />
+                    <span aria-hidden="true" className="top-btn-halo" />
+                    <svg
+                      ref={arrowIconRef}
+                      className="w-[18px] h-[18px] text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path className="top-arrow-path" d="M12 19V5M5 12l7-7 7 7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
 
-          {/* Gemini Rainbow Glow & Reactive Gradient Border container */}
-          <div
-            ref={nav}
-            style={
-              {
-                '--gradient-focus-x': '50%',
-                '--gradient-radius': '240px',
-                '--focus-opacity': '0',
-                '--base-opacity': '0.3',
-                '--aura-opacity': '0.22',
-                '--transit-surge': '1',
-              } as React.CSSProperties
-            }
-            className="relative group/nav pointer-events-auto select-none"
-            onMouseMove={handleMouseMove}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-          >
-            {/* Layer 1: Atmospheric living aura wrapping around the nav with Gemini signature multi-color rainbow gradient */}
-            <div aria-hidden="true" className="gemini-aura-ambient">
-              <div className="gemini-conic-stream" />
-            </div>
+              {/* Gemini Rainbow Glow & Reactive Gradient Border container */}
+              <div
+                ref={nav}
+                style={
+                  {
+                    '--gradient-focus-x': '50%',
+                    '--gradient-radius': '240px',
+                    '--focus-opacity': '0',
+                    '--base-opacity': '0.3',
+                    '--aura-opacity': '0.22',
+                    '--transit-surge': '1',
+                  } as React.CSSProperties
+                }
+                className="relative group/nav pointer-events-auto select-none"
+                onMouseMove={handleMouseMove}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
+                {/* Layer 1: Atmospheric living aura wrapping around the nav with Gemini signature multi-color rainbow gradient */}
+                <div aria-hidden="true" className="gemini-aura-ambient">
+                  <div className="gemini-conic-stream" />
+                </div>
 
-            {/* Layer 2: Shimmer neon halo around the perimeter border */}
-            <div aria-hidden="true" className="gemini-aura-shimmer">
-              <div className="gemini-conic-stream" />
-            </div>
+                {/* Layer 2: Shimmer neon halo around the perimeter border */}
+                <div aria-hidden="true" className="gemini-aura-shimmer">
+                  <div className="gemini-conic-stream" />
+                </div>
 
-            <div ref={shapeRef} aria-hidden="true" className="nav-shape" style={{ ['--nav-reach' as string]: `${NAV_REACH}px` }}>
-              <div className="nav-shape-layer nav-shape-drop"><div className="nav-shape-fill" data-clip="outer" /></div>
-              <div className="nav-shape-layer nav-shape-halo"><div className="nav-shape-fill" data-clip="ring" /></div>
-              <div className="nav-shape-layer nav-shape-surface" data-clip="inner" />
-              <div className="nav-shape-layer nav-shape-ring" data-clip="ring">
-                <div className="gemini-conic-stream gemini-conic-base" />
-                <div className="nav-shape-navarea">
-                  <div className="gemini-conic-focus"><div className="gemini-conic-stream" /></div>
-                  <div className="gemini-hover-spotlight" />
+                <div ref={shapeRef} aria-hidden="true" className="nav-shape" style={{ ['--nav-reach' as string]: `${NAV_REACH}px` }}>
+                  <div className="nav-shape-layer nav-shape-drop"><div className="nav-shape-fill" data-clip="outer" /></div>
+                  <div className="nav-shape-layer nav-shape-halo"><div className="nav-shape-fill" data-clip="ring" /></div>
+                  <div className="nav-shape-layer nav-shape-surface" data-clip="inner" />
+                  <div className="nav-shape-layer nav-shape-ring" data-clip="ring">
+                    <div className="gemini-conic-stream gemini-conic-base" />
+                    <div className="nav-shape-navarea">
+                      <div className="gemini-conic-focus"><div className="gemini-conic-stream" /></div>
+                      <div className="gemini-hover-spotlight" />
+                    </div>
+                  </div>
+                </div>
+
+                <div ref={bodyRef} className="relative p-[1.5px]">
+                  <nav
+                    aria-label="Primary"
+                    className="relative flex items-center gap-1 p-1.5 text-sm rounded-full overflow-hidden border border-transparent"
+                  >
+                    {/* Dynamic active/hover glow inside the glass beneath active section button */}
+                    <div aria-hidden="true" className="gemini-active-glow" />
+
+                    <ul ref={ulRef} className="relative flex items-center gap-0.5 sm:gap-1">
+                      {/* Shared sliding and blurring glass pill indicator */}
+                      <span
+                        ref={pill}
+                        aria-hidden="true"
+                        className="absolute top-0 left-0 rounded-full bg-white/15 border border-white/20 shadow-[inset_0_1px_0_rgb(255_255_255/0.3)] pointer-events-none opacity-0 will-change-transform"
+                      />
+
+                      {links.map((l) => (
+                        <li key={l.id}>
+                          <a
+                            ref={(el) => {
+                              linkRefs.current[l.id] = el
+                            }}
+                            href={`#${l.id}`}
+                            onClick={(e) => go(e, l.id)}
+                            onMouseEnter={() => handleButtonEnter(l.id)}
+                            aria-current={active === l.id ? 'true' : undefined}
+                            className={`relative z-10 block rounded-full px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition-colors duration-200 ${
+                              active === l.id
+                                ? 'text-white'
+                                : 'text-mist hover:text-white'
+                            }`}
+                          >
+                            {l.label}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </nav>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div ref={bodyRef} className="relative p-[1.5px]">
-              <nav
-                aria-label="Primary"
-                className="relative flex items-center gap-1 p-1.5 text-sm rounded-full overflow-hidden border border-transparent"
-              >
-                {/* Dynamic active/hover glow inside the glass beneath active section button */}
-                <div aria-hidden="true" className="gemini-active-glow" />
-
-                <ul ref={ulRef} className="relative flex items-center gap-0.5 sm:gap-1">
-                  {/* Shared sliding and blurring glass pill indicator */}
-                  <span
-                    ref={pill}
-                    aria-hidden="true"
-                    className="absolute top-0 left-0 rounded-full bg-white/15 border border-white/20 shadow-[inset_0_1px_0_rgb(255_255_255/0.3)] pointer-events-none opacity-0 will-change-transform"
-                  />
-
-                  {links.map((l) => (
-                    <li key={l.id}>
-                      <a
-                        ref={(el) => {
-                          linkRefs.current[l.id] = el
-                        }}
-                        href={`#${l.id}`}
-                        onClick={(e) => go(e, l.id)}
-                        onMouseEnter={() => handleButtonEnter(l.id)}
-                        aria-current={active === l.id ? 'true' : undefined}
-                        className={`relative z-10 block rounded-full px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition-colors duration-200 ${
-                          active === l.id
-                            ? 'text-white'
-                            : 'text-mist hover:text-white'
-                        }`}
-                      >
-                        {l.label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            </div>
+          {/* RIGHT: get in touch */}
+          <div className="hidden md:flex justify-end">
+            <a
+              href="#contact"
+              aria-label="Get in touch"
+              data-magnetic
+              onClick={(e) => go(e, 'contact')}
+              className="hdr-btn btn btn-ghost pointer-events-auto backdrop-blur-md border border-white/15 hover:border-white/30"
+            >
+              <span className="font-medium tracking-wide">Get in touch</span>
+              <span aria-hidden="true">&rarr;</span>
+            </a>
           </div>
         </div>
       </header>

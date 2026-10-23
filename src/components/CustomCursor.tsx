@@ -16,6 +16,7 @@ const TAP_DUR = 0.4           // length of one click motion
 const TAP_DOWN = 0.1          // how much of that is the fast press-in
 const TAP_DEPTH = 0.2         // how far the ring shrinks on press (0.2 = 20% smaller)
 const ENABLE_DOT_PULL = false // true = ring snaps to the timeline dots again
+const CURSOR_MIN_WIDTH = 768 // narrower windows (phone size) never show the custom cursor
 
 export default function CustomCursor() {
   const lite = useLiteMode()
@@ -35,11 +36,12 @@ export default function CustomCursor() {
       return
     }
 
-    if (!window.matchMedia('(pointer: fine)').matches) return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const g = glow.current!, r = ring.current!, d = dot.current!
-    const isMobile = () => window.innerWidth < 768
-    if (!isMobile()) root.classList.add('has-cursor')
+    const isDesktopPointer = () => window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    const isMobile = () => window.innerWidth < CURSOR_MIN_WIDTH || !isDesktopPointer()
+    let hasMouse = !isMobile() && window.matchMedia('(pointer: fine)').matches
+    if (hasMouse) root.classList.add('has-cursor')
 
     const ptr = { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     const s = { x: ptr.x, y: ptr.y, w: BASE, h: BASE, r: BASE / 2 } // the ring's current (smoothed) state
@@ -176,7 +178,16 @@ export default function CustomCursor() {
 
     /* ── events ── */
     const onMove = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse' || isMobile()) {
+      if (e.pointerType === 'mouse') {
+        if (!hasMouse) {
+          hasMouse = true
+          if (!isMobile()) root.classList.add('has-cursor')
+        }
+      } else {
+        if (shown) show(false)
+        return
+      }
+      if (!hasMouse || isMobile()) {
         if (shown) show(false)
         return
       }
@@ -190,14 +201,14 @@ export default function CustomCursor() {
     // When the page scrolls under a still pointer, no pointer event fires: re-test what is under it.
     const scrollEval = () => {
       if (isGliding || document.documentElement.hasAttribute('data-nav-gliding')) return
-      if (scrollRaf || !shown || isMobile()) return
+      if (scrollRaf || !shown || !hasMouse || isMobile()) return
       scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; evaluate(document.elementFromPoint(ptr.x, ptr.y)) })
     }
     const onScroll = throttle(scrollEval, 60)
     const onResize = () => {
-      const mobile = isMobile()
-      root.classList.toggle('has-cursor', !mobile)
-      if (mobile && shown) {
+      const active = hasMouse && !isMobile()
+      root.classList.toggle('has-cursor', active)
+      if (!active && shown) {
         show(false)
         release()
         if (magnet) { releaseMagnet(magnet); magnet = null }

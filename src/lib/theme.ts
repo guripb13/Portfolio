@@ -4,6 +4,11 @@ export type Theme = 'dark' | 'light'
 const KEY = 'theme'
 const META_COLOR: Record<Theme, string> = { dark: '#05060d', light: '#eef2fb' }
 
+/* One duration drives everything: full-screen blur, colour fade and the toggle's icon swap.
+   It is also written to CSS as --theme-ms so JS and CSS never drift apart. */
+export const THEME_FX_MS = 350
+let fxTimer = 0
+
 const read = (): Theme =>
   typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
 
@@ -17,10 +22,16 @@ export const setTheme = (next: Theme) => {
   theme = next
   const root = document.documentElement
 
-  // Short colour cross-fade (skipped for people who prefer reduced motion)
+  // Full-screen blur + colour cross-fade (skipped for people who prefer reduced motion)
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    window.clearTimeout(fxTimer)
+    root.classList.remove('theme-switching')
+    void root.offsetHeight // restart the animation if toggled quickly
+    root.style.setProperty('--theme-ms', `${THEME_FX_MS}ms`)
     root.classList.add('theme-switching')
-    window.setTimeout(() => root.classList.remove('theme-switching'), 450)
+    fxTimer = window.setTimeout(() => {
+      root.classList.remove('theme-switching')
+    }, THEME_FX_MS + 100)
   }
 
   root.setAttribute('data-theme', next)

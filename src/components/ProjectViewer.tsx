@@ -17,6 +17,12 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
   const [activeIdx, setActiveIdx] = useState(0)
   const [zoom, setZoom] = useState<ZoomState | null>(null)
 
+  const pushedRef = useRef(false)          // did we add a history entry?
+  const openRef = useRef(isOpen)           // always-current isOpen
+  const onCloseRef = useRef(onClose)       // always-current onClose
+  openRef.current = isOpen
+  onCloseRef.current = onClose
+
   const openZoom = (p: (typeof projects)[number], idx: number, card: HTMLElement) => {
     const img = card.querySelector('img')
     if (!img || !p.image) return
@@ -40,11 +46,44 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     if (!isOpen) setZoom(null)
   }, [isOpen])
 
+  // Phone / browser Back button closes the viewer instead of leaving the site
+  useEffect(() => {
+    if (!isOpen) return
+
+    // stop the browser from jumping the main page's scroll position when the history entry is removed
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+
+    if (!pushedRef.current) {
+      history.pushState({ projectViewer: true }, '')
+      pushedRef.current = true
+    }
+
+    const onPop = () => {
+      pushedRef.current = false   // the entry is already gone
+      onCloseRef.current()
+    }
+    window.addEventListener('popstate', onPop)
+
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      // Closed with a button (not Back): remove our history entry.
+      // Deferred so React StrictMode's dev double-run doesn't trigger it.
+      setTimeout(() => {
+        if (!openRef.current && pushedRef.current) {
+          pushedRef.current = false
+          history.back()
+        }
+      }, 0)
+    }
+  }, [isOpen])
+
   const projects = resume.projects
   const totalPanels = projects.length + 1 // Projects + Closing panel
 
-  const scrollToPanel = (idx: number) => {
-    panelRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', inline: 'start' })
+  const scrollToPanel = (idx: number, behavior: ScrollBehavior = 'smooth') => {
+    const c = containerRef.current
+    if (!c) return
+    c.scrollTo({ left: idx * c.clientWidth, behavior })
   }
 
   const goNext = () => {
@@ -55,8 +94,6 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     if (activeIdx > 0) scrollToPanel(activeIdx - 1)
   }
 
-
-
   // On open or initialIndex change, jump to selected project
   useEffect(() => {
     if (!isOpen) return
@@ -64,10 +101,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     setActiveIdx(targetIdx)
     // Small timeout to allow DOM to layout after slide-in
     const timer = setTimeout(() => {
-      const el = panelRefs.current[targetIdx]
-      if (el && containerRef.current) {
-        el.scrollIntoView({ inline: 'start', block: 'nearest', behavior: 'instant' as ScrollBehavior })
-      }
+      scrollToPanel(targetIdx, 'instant' as ScrollBehavior)
     }, 20)
     return () => clearTimeout(timer)
   }, [isOpen, initialIndex])
@@ -96,10 +130,13 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     if (!container || !isOpen) return
 
     const handleWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault()
-        container.scrollBy({ left: e.deltaY * 1.2, behavior: 'auto' })
-      }
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      // If this project has more content to scroll, let the browser scroll it vertically
+      const panel = (e.target as HTMLElement | null)?.closest('section') as HTMLElement | null
+      if (panel && panel.scrollHeight > panel.clientHeight + 1) return
+      // Short panel with nothing to scroll: wheel moves between projects
+      e.preventDefault()
+      container.scrollBy({ left: e.deltaY * 1.2, behavior: 'auto' })
     }
 
     container.addEventListener('wheel', handleWheel, { passive: false })
@@ -115,16 +152,12 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
       if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      } else if (e.key === 'ArrowRight') {
         e.preventDefault()
-        if (activeIdx < totalPanels - 1) {
-          panelRefs.current[activeIdx + 1]?.scrollIntoView({ behavior: 'smooth', inline: 'start' })
-        }
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        if (activeIdx < totalPanels - 1) scrollToPanel(activeIdx + 1)
+      } else if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        if (activeIdx > 0) {
-          panelRefs.current[activeIdx - 1]?.scrollIntoView({ behavior: 'smooth', inline: 'start' })
-        }
+        if (activeIdx > 0) scrollToPanel(activeIdx - 1)
       }
     }
 
@@ -132,18 +165,17 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, activeIdx, totalPanels, onClose, zoom])
 
-
-
   return (
     <div
       id="project-viewer-modal"
       data-project-viewer-open={isOpen ? 'true' : 'false'}
-      className={`fixed inset-0 z-50 overflow-hidden bg-void transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+      className={`fixed inset-0 z-50 flex flex-col overflow-hidden bg-void transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
         isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
       }`}
       aria-modal="true"
       role="dialog"
       aria-label="Project details viewer"
+      data-lenis-prevent
     >
       {/* Ambient background blur */}
       <div
@@ -152,9 +184,9 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
         style={{ background: 'radial-gradient(circle 55vmax at 0% 0%, rgb(61 139 255 / .24) 0%, rgb(61 139 255 / .15) 18%, rgb(61 139 255 / .075) 36%, rgb(61 139 255 / .026) 55%, transparent 74%)' }}
       />
 
-      {/* Top Header Bar (mobile view; relocated adjacent to bottom nav in desktop view) */}
-      <header className="absolute inset-x-0 top-0 z-20 flex md:hidden items-center justify-between px-6 py-6 md:px-12 pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-3">
+      {/* Top Header Bar (mobile view) */}
+      <header className="relative z-20 flex shrink-0 md:hidden items-center justify-between gap-3 border-b border-white/10 bg-void/80 px-4 py-3 backdrop-blur-md sm:px-6">
+        <div className="flex items-center gap-3">
           <span className="glass glass-pill px-4 py-1.5 text-xs sm:text-sm font-medium text-frost">
             {activeIdx < projects.length ? `Project ${activeIdx + 1} of ${projects.length}` : 'Conclusion'}
           </span>
@@ -163,7 +195,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
         <button
           onClick={onClose}
           data-magnetic
-          className="pointer-events-auto glass glass-pill flex items-center gap-2 px-4 py-2 text-xs sm:text-sm text-mist hover:text-white transition-colors"
+          className="glass glass-pill flex items-center gap-2 px-4 py-2 text-xs sm:text-sm text-mist hover:text-white transition-colors"
           aria-label="Close project viewer"
         >
           <span>Close</span>
@@ -174,17 +206,17 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
       {/* Horizontal Carousel Track */}
       <div
         ref={containerRef}
-        className="flex h-full w-full overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth no-scrollbar"
+        className="flex min-h-0 w-full flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {projects.map((p, i) => (
           <section
             key={p.title}
             ref={(el) => { panelRefs.current[i] = el }}
-            className="flex h-full w-screen min-w-full shrink-0 snap-start items-center justify-center overflow-y-auto px-6 py-24 md:px-12 md:py-20 lg:px-20"
+            className="flex w-screen min-w-full shrink-0 snap-start snap-always self-stretch overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pt-5 pb-10 sm:px-8 md:px-12 md:pt-8 md:pb-12 lg:px-20 lg:py-20"
             aria-label={`${p.title} details`}
           >
-            <div className="mx-auto grid w-full max-w-7xl items-center gap-8 lg:grid-cols-12 lg:gap-14">
+            <div className="mx-auto grid w-full max-w-7xl items-start lg:items-center my-auto gap-8 lg:grid-cols-12 lg:gap-14">
               {/* Left Column: Details */}
               <div className="order-2 lg:order-1 lg:col-span-6 flex flex-col justify-center">
                 <p className="text-xs sm:text-sm font-medium tracking-wide uppercase text-neon-soft">
@@ -241,7 +273,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
               </div>
 
               {/* Right Column: Visual */}
-              <div className="order-1 lg:order-2 lg:col-span-6">
+              <div className="order-1 mx-auto w-full md:max-w-xl lg:order-2 lg:col-span-6 lg:max-w-none">
                 <GlassCard
                   tilt
                   data-cursor
@@ -256,7 +288,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
                     }
                   }}
                   onPointerEnter={() => preload(p.imageFull)}
-                  className={`group relative aspect-[16/10] sm:aspect-[4/3] w-full overflow-hidden !rounded-3xl p-0 shadow-2xl border border-white/20 ${
+                  className={`group relative aspect-[4/3] lg:aspect-[16/10] w-full shrink-0 overflow-hidden bg-[#0a0d1f] !rounded-3xl p-0 shadow-2xl border border-white/20 ${
                     p.image ? 'cursor-zoom-in' : ''
                   } ${zoom?.idx === i ? 'opacity-0' : ''}`}
                 >
@@ -270,10 +302,10 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
         {/* Final Closing Panel */}
         <section
           ref={(el) => { panelRefs.current[projects.length] = el }}
-          className="flex h-full w-screen min-w-full shrink-0 snap-start items-center justify-center px-6 py-24 md:px-12"
+          className="flex w-screen min-w-full shrink-0 snap-start snap-always self-stretch overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pt-5 pb-10 sm:px-8 md:px-12 items-center justify-center"
           aria-label="Contact and conclusion"
         >
-          <GlassCard className="mx-auto max-w-2xl w-full p-8 sm:p-12 text-center border border-white/20">
+          <GlassCard className="mx-auto max-w-2xl w-full p-8 sm:p-12 text-center border border-white/20 my-auto">
             <span className="inline-block rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold tracking-wider uppercase text-neon-soft">
               Next Step
             </span>
@@ -305,7 +337,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
         </section>
       </div>
 
-      <footer className="absolute inset-x-0 bottom-6 z-20 px-4 lg:px-20 pointer-events-none">
+      <footer className="relative shrink-0 md:absolute md:inset-x-0 md:bottom-6 z-20 px-4 lg:px-20 pointer-events-none pb-4 md:pb-0">
         <div className="mx-auto w-full max-w-7xl lg:grid lg:grid-cols-12 lg:gap-14">
           <div
             className={`viewer-controls-bar w-full flex items-center justify-center gap-3 lg:col-start-7 lg:col-span-6 ${
@@ -369,7 +401,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
               onClick={onClose}
               data-magnetic
               className="hidden md:flex pointer-events-auto glass glass-pill h-10 items-center gap-2 px-4 text-xs sm:text-sm text-mist hover:text-white transition-colors bg-[#080c1a]/90 border border-white/20 shadow-2xl cursor-pointer"
-              aria-label="Close project viewer"
+              aria-label="Close project viewer modal"
             >
               <span>Close</span>
               <kbd className="hidden xl:inline-block rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-mono text-frost">Esc</kbd>
