@@ -27,7 +27,10 @@ export interface Job {
   period: string
   summary: string
 }
+
+/** '/' while developing, '/Portfolio/' on GitHub Pages (set by `base` in vite.config.ts). */
 const B = import.meta.env.BASE_URL
+
 export const resume = {
   name: 'Guriqbal Singh',
   title: 'Aspiring AI-enabled Software Developer',
@@ -59,8 +62,8 @@ export const resume = {
     focus: { title: "What I'm working on now.", line: 'Diploma in Computer Science at SLIET, 2024 to 2027', cta: 'See my learning' },
   },
   /** Path inside /public. Transparent PNG gives the cleanest portrait. */
-  photo: '${B}me2.webp',
-  aboutPhoto: '${B}me.webp', // used in the About section
+  photo: `${B}me2.webp`,
+  aboutPhoto: `${B}me.webp`, // used in the About section
   email: 'guriqbal.singh.1108@gmail.com',
   socials: [
     { label: 'LinkedIn', href: 'https://linkedin.com/in/guriqbal-singh-48057739a' },
@@ -94,7 +97,7 @@ export const resume = {
       credentialUrl: 'https://learn.saylor.org/admin/tool/certificate/index.php?code=3877746598GS',
       from: '#3d8bff',
       to: '#1d2f9a',
-      image: '${B}projects/CS205_LOW.png',
+      image: `${B}projects/CS205_LOW.png`,
     },
     {
       title: 'Mastercard - Cybersecurity Job Simulation',
@@ -108,7 +111,7 @@ export const resume = {
       ],
       stack: ['Cybersecurity', 'Phishing Analysis', 'Security Awareness'],
       credentialUrl: 'https://www.theforage.com/completion-certificates/mfxGwGDp6WkQmtmTf/vcKAB5yYAgvemepGQ_mfxGwGDp6WkQmtmTf_695b2e3839ff7eaad974d7cd_1772974775071_completion_certificate.pdf',
-      image: '${B}projects/MCJS_LOW.png',
+      image: `${B}projects/MCJS_LOW.png`,
       from: '#0284c7',
       to: '#1e40af',
     },
@@ -124,7 +127,7 @@ export const resume = {
       ],
       stack: ['C++', 'Code Quality', 'Code Review', 'Software Engineering'],
       credentialUrl: 'https://www.theforage.com/completion-certificates/j43dGscQHtJJ57N54/a77WE3de8qrxWferQ_j43dGscQHtJJ57N54_695b2e3839ff7eaad974d7cd_1768222679714_completion_certificate.pdf',
-      image: '${B}projects/SEJS_LOW.png',
+      image: `${B}projects/SEJS_LOW.png`,
       from: '#2fd3ff',
       to: '#0b328a',
     },
@@ -139,7 +142,7 @@ export const resume = {
       ],
       stack: ['Tableau', 'Excel', 'Data Analytics'],
       credentialUrl: 'https://www.theforage.com/completion-certificates/9PBTqmSxAf6zZTseP/io9DzWKe3PTsiS6GG_9PBTqmSxAf6zZTseP_695b2e3839ff7eaad974d7cd_1768135596287_completion_certificate.pdf',
-      image: '${B}projects/DAJS_LOW.png',
+      image: `${B}projects/DAJS_LOW.png`,
       from: '#0284c7',
       to: '#1e40af',
     },
@@ -155,7 +158,7 @@ export const resume = {
       ],
       stack: ['Data Labeling', 'AI Operations', 'Trust & Safety'],
       credentialUrl: 'https://www.theforage.com/completion-certificates/HgpPSsyQpzob6HEh9/Fnbjyox4Y4SciuEGF_HgpPSsyQpzob6HEh9_695b2e3839ff7eaad974d7cd_1767614201018_completion_certificate.pdf',
-      image: '${B}projects/FADL_LOW.png',
+      image: `${B}projects/FADL_LOW.png`,
       from: '#12c2e9',
       to: '#1b3cff',
     },
@@ -171,7 +174,7 @@ export const resume = {
       ],
       stack: ['Cybersecurity', 'Computer Networking'],
       credentialUrl: 'https://www.theforage.com/completion-certificates/9PBTqmSxAf6zZTseP/E9pA6qsdbeyEkp3ti_9PBTqmSxAf6zZTseP_695b2e3839ff7eaad974d7cd_1767584717392_completion_certificate.pdf',
-      image: '${B}projects/DCJS_LOW.png',
+      image: `${B}projects/DCJS_LOW.png`,
       from: '#3d8bff',
       to: '#0b328a',
     },
@@ -186,7 +189,7 @@ export const resume = {
       ],
       stack: ['Artificial Intelligence (AI)', 'Python'],
       credentialUrl: 'https://certificates.cs50.io/e695a292-9cbc-4887-9bda-3c77262c8f8f.pdf?size=letter',
-      image: '${B}projects/CS50AI_LOW.png',
+      image: `${B}projects/CS50AI_LOW.png`,
       from: '#2fd3ff',
       to: '#1d2f9a',
     },
