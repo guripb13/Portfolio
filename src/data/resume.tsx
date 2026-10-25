@@ -209,7 +209,7 @@ export const resume = {
     },
     {
       company: 'Harvard Online / edX',
-      role: 'CS50 AI Student',
+      role: 'CS50 Student',
       period: '2023 to 2024',
       summary: 'Completed intensive coursework on foundational AI and machine learning in Python, covering heavy search, Bayesian probability, optimization, and deep learning architectures.',
     },
