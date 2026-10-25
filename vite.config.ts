@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 // main.tsx loads the website with a dynamic import(), so the Loader ships in a tiny entry
 // and the rest of the site downloads in parallel behind it.
 export default defineConfig({
+  base: '/Portfolio/',
   plugins: [react(), tailwindcss()],
   build: {
     chunkSizeWarningLimit: 1400,
