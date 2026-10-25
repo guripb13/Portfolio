@@ -116,6 +116,7 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
   const panelRefs = useRef<(HTMLElement | null)[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
   const [zoom, setZoom] = useState<ZoomState | null>(null)
+  const [closeZoomReq, setCloseZoomReq] = useState(0)
 
   // Header buttons: icon-only after the first scroll, text returns on hover / while an image is enlarged
   const [compact, setCompact] = useState(false)
@@ -123,13 +124,17 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
   const [hoverCred, setHoverCred] = useState(false)
   const armedRef = useRef(false)           // ignores the automatic scroll that happens while opening
 
-  const pushedRef = useRef(false)          // did we add a history entry?
+  const pushedRef = useRef(false)          // did we add a history entry for the viewer?
+  const zoomPushedRef = useRef(false)      // did we add a history entry for the enlarged certificate?
+  const isProgrammaticBack = useRef(false) // prevents popstate from triggering onClose when history.back() is called programmatically
   const openRef = useRef(isOpen)           // always-current isOpen
   const onCloseRef = useRef(onClose)       // always-current onClose
   const activeRef = useRef(0)              // always-current activeIdx (for the wheel handler)
+  const zoomRef = useRef<ZoomState | null>(null)
   openRef.current = isOpen
   onCloseRef.current = onClose
   activeRef.current = activeIdx
+  zoomRef.current = zoom
 
   const openZoom = (p: (typeof projects)[number], idx: number, card: HTMLElement) => {
     const img = card.querySelector('img')
@@ -143,12 +148,27 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     })
   }
 
+  // Manage browser history for the enlarged certificate
+  useEffect(() => {
+    if (!isOpen || !zoom) return
+
+    if (!zoomPushedRef.current) {
+      history.pushState({ projectViewerZoom: true }, '')
+      zoomPushedRef.current = true
+    }
+  }, [isOpen, zoom])
+
   // If the whole viewer closes, drop the enlarged image
   useEffect(() => {
-    if (!isOpen) setZoom(null)
+    if (!isOpen) {
+      setZoom(null)
+      zoomPushedRef.current = false
+    }
   }, [isOpen])
 
-  // Phone / browser Back button closes the viewer instead of leaving the site
+  // Phone / browser Back button or swipe-back gesture:
+  // 1. If a certificate is enlarged, return it smoothly to its original position first.
+  // 2. If no certificate is enlarged, close the whole project viewer.
   useEffect(() => {
     if (!isOpen) return
 
@@ -161,7 +181,21 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
     }
 
     const onPop = () => {
-      pushedRef.current = false   // the entry is already gone
+      // If we popped history programmatically (e.g. user clicked/tapped to close), ignore this popstate event
+      if (isProgrammaticBack.current) {
+        isProgrammaticBack.current = false
+        return
+      }
+
+      // If a certificate is currently enlarged, the back gesture returns it smoothly to its card
+      if (zoomRef.current) {
+        zoomPushedRef.current = false   // the entry was already popped by the browser back gesture
+        setCloseZoomReq((c) => c + 1)   // triggers ImageLightbox return animation
+        return
+      }
+
+      // Otherwise, the back gesture closes the viewer
+      pushedRef.current = false         // the entry was already popped by the browser back gesture
       onCloseRef.current()
     }
     window.addEventListener('popstate', onPop)
@@ -171,9 +205,20 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
       // Closed with a button (not Back): remove our history entry.
       // Deferred so React StrictMode's dev double-run doesn't trigger it.
       setTimeout(() => {
-        if (!openRef.current && pushedRef.current) {
-          pushedRef.current = false
-          history.back()
+        if (!openRef.current) {
+          let steps = 0
+          if (zoomPushedRef.current) {
+            zoomPushedRef.current = false
+            steps++
+          }
+          if (pushedRef.current) {
+            pushedRef.current = false
+            steps++
+          }
+          if (steps > 0) {
+            isProgrammaticBack.current = true
+            history.go(-steps)
+          }
         }
       }, 0)
     }
@@ -672,7 +717,20 @@ export default function ProjectViewer({ initialIndex, isOpen, onClose, onContact
         </div>
       </footer>
 
-      {zoom && <ImageLightbox zoom={zoom} onClosed={() => setZoom(null)} />}
+      {zoom && (
+        <ImageLightbox
+          zoom={zoom}
+          closeRequest={closeZoomReq}
+          onClosed={() => {
+            setZoom(null)
+            if (zoomPushedRef.current) {
+              zoomPushedRef.current = false
+              isProgrammaticBack.current = true
+              history.back()
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
