@@ -35,6 +35,10 @@ async function copyText(text: string): Promise<boolean> {
  *
  * The text label carries the "font-medium" class so that, when used with the "hdr-btn" class,
  * it collapses into a round icon-only button (same as the top bar's Theme button).
+ *
+ * NOTE: Do NOT add transform/transition classes (e.g. transition-transform, active:scale-*)
+ * to this button. The "data-magnetic" effect drives the transform from JavaScript, and a CSS
+ * transition on top of it makes the movement feel laggy/sticky.
  */
 export default function ShareButton({ className = '' }: { className?: string }) {
   const [status, setStatus] = useState<'idle' | 'sharing' | 'copied' | 'failed'>('idle')
@@ -87,7 +91,7 @@ export default function ShareButton({ className = '' }: { className?: string }) 
       data-magnetic
       aria-label="Share this portfolio"
       title="Share this portfolio"
-      className={`btn btn-ghost items-center gap-2 backdrop-blur-md border border-white/15 hover:border-white/30 active:scale-95 transition-transform duration-150 ${className}`}
+      className={`btn btn-ghost items-center gap-2 border border-white/15 hover:border-white/30 ${className}`}
     >
       {status === 'idle' && (
         <>
