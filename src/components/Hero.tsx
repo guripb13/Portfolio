@@ -144,7 +144,7 @@ export default function Hero({ isAppLoaded = true }: HeroProps) {
           <p className="hero-fade text-[0.7rem] text-center  font-semibold uppercase tracking-[0.22em] text-mist">
             Computer Science <span className="mx-1.5 text-neon-soft">&bull;</span> SLIET
           </p>
-
+{/*font size updated*/}
           <h1 className="hero-fade -mt-1 text-center font-display text-[clamp(1.9rem,10vw,3.1rem)] font-extrabold leading-[1.02] tracking-tight text-white">
   Blending creative vision<br />
   with an obsession for <span className="text-neon">minor details.</span>
