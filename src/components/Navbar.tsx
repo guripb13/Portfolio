@@ -4,6 +4,8 @@ import { gsap, useGSAP } from '../lib/gsap'
 import { throttle } from '../lib/perf'
 import ThemeToggle from './ThemeToggle'
 
+import ShareButton from './ShareButton'
+
 const links = [
   { id: 'about', label: 'About' },
   { id: 'work', label: 'Work' },
@@ -493,7 +495,7 @@ export default function Navbar({ isHidden = false }: NavbarProps) {
     }, durationMs)
   }, [])
 
-  // Applies blur and tint to the fixed backdrop veil during glides
+    // Applies blur (and a dark tint in dark mode only) to the fixed backdrop veil during glides
   const applyVeil = useCallback((progress: number, maxBlurPx: number) => {
     if (!veil.current) return
     const style = veil.current.style as CSSStyleDeclaration & { webkitBackdropFilter?: string }
@@ -509,8 +511,12 @@ export default function Navbar({ isHidden = false }: NavbarProps) {
     const filterVal = `blur(${blurPx}px)`
     style.backdropFilter = filterVal
     if ('webkitBackdropFilter' in style) style.webkitBackdropFilter = filterVal
-    // Darkness during the blur: change 0.3 in applyVeil, which is the maximum dark tint. Set it to 0 for blur only.
-    style.backgroundColor = `rgba(0, 0, 0, ${(progress * 0.3).toFixed(3)})`
+
+    // Light mode: blur only, no dark tint. Dark mode: keep the original dark tint.
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+    style.backgroundColor = isLight
+      ? 'transparent'
+      : `rgba(0, 0, 0, ${(progress * 0.3).toFixed(3)})`
     style.opacity = '1'
   }, [])
 
@@ -1093,7 +1099,7 @@ export default function Navbar({ isHidden = false }: NavbarProps) {
       )}
 
       <header
-        className={`fixed inset-x-0 top-4 z-50 px-4 md:px-8 pt-[env(safe-area-inset-top)] pointer-events-none transition-all duration-300 ${
+        className={`fixed inset-x-0 top-4 z-50 px-4 md:px-8 lg:px-12 pt-[env(safe-area-inset-top)] pointer-events-none transition-all duration-300 ${
           isHidden ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'
         }`}
       >
@@ -1227,17 +1233,9 @@ export default function Navbar({ isHidden = false }: NavbarProps) {
           </div>
 
           {/* RIGHT: get in touch */}
+                    {/* RIGHT: share (desktop: copies the link · phone/tablet: opens the share menu) */}
           <div className="hidden md:flex justify-end">
-            <a
-              href="#contact"
-              aria-label="Get in touch"
-              data-magnetic
-              onClick={(e) => go(e, 'contact')}
-              className="hdr-btn btn btn-ghost pointer-events-auto backdrop-blur-md border border-white/15 hover:border-white/30"
-            >
-              <span className="font-medium tracking-wide">Get in touch</span>
-              <span aria-hidden="true">&rarr;</span>
-            </a>
+            <ShareButton className="hdr-btn pointer-events-auto" />
           </div>
         </div>
       </header>

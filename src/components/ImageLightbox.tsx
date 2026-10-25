@@ -1,11 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { gsap } from '../lib/gsap'
 
 export interface ZoomState {
   idx: number            // which project panel it came from
   el: HTMLElement        // the thumbnail card (its position is the start/end point)
-  low: string            // low-quality src
-  full: string           // high-quality src
+  low: string            // image src
   alt: string
   ratio: number          // natural width / height of the image
 }
@@ -13,15 +12,15 @@ export interface ZoomState {
 interface Props {
   zoom: ZoomState
   onClosed: () => void   // called AFTER the return animation finishes
+  closeRequest?: number  // increases when the parent wants it closed (phone / browser Back button)
 }
 
 const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export default function ImageLightbox({ zoom, onClosed }: Props) {
+export default function ImageLightbox({ zoom, onClosed, closeRequest = 0 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
   const closingRef = useRef(false)
-  const [fullLoaded, setFullLoaded] = useState(false)
 
   // Final centred size: fit inside 92vw x 88vh, keep aspect ratio
   const target = () => {
@@ -42,40 +41,38 @@ export default function ImageLightbox({ zoom, onClosed }: Props) {
     const wrap = wrapRef.current
     const backdrop = backdropRef.current
     if (!wrap || !backdrop) return
-    const d = reduce() ? 0 : 0.6
+    const d = reduce() ? 0 : 0.75
     gsap.set(wrap, { ...startRect(), borderRadius: 24 })
-    gsap.to(wrap, { ...target(), borderRadius: 16, duration: d, ease: 'power3.inOut' })
+    gsap.to(wrap, { ...target(), borderRadius: 16, duration: d, ease: 'power4.inOut' })
     gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: d * 0.8, ease: 'power2.out' })
     return () => { gsap.killTweensOf([wrap, backdrop]) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load the high-quality image in the background
-  useEffect(() => {
-    const img = new Image()
-    img.src = zoom.full
-    img.onload = () => setFullLoaded(true)
-    if (img.complete) setFullLoaded(true)
-  }, [zoom.full])
-
-  // Close: centre -> thumbnail position, back to low quality
+  // Close: centre -> thumbnail position
   const close = () => {
     if (closingRef.current) return
     closingRef.current = true
-    setFullLoaded(false) // show the low-quality image again while returning
     const wrap = wrapRef.current
     const backdrop = backdropRef.current
     if (!wrap || !backdrop) return onClosed()
-    const d = reduce() ? 0 : 0.5
-    gsap.to(backdrop, { opacity: 0, duration: d, ease: 'power2.in' })
+    const d = reduce() ? 0 : 0.75
+    gsap.to(backdrop, { opacity: 0, duration: d, ease: 'power2.inOut' })
     gsap.to(wrap, {
       ...startRect(),
       borderRadius: 24,
       duration: d,
-      ease: 'power3.inOut',
+      ease: 'power4.inOut',
+      overwrite: true,
       onComplete: onClosed,
     })
   }
+
+  // Back button: parent bumps closeRequest -> play the same return animation as a tap
+  useEffect(() => {
+    if (closeRequest > 0) close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closeRequest])
 
   // Esc closes only the image (capture phase so the viewer never sees it)
   useEffect(() => {
@@ -116,19 +113,13 @@ export default function ImageLightbox({ zoom, onClosed }: Props) {
         data-cursor
         onClick={close}
         className="fixed overflow-hidden border border-white/20 shadow-2xl cursor-zoom-out"
-        style={{ willChange: 'left, top, width, height' }}
+        style={{ willChange: 'left, top, width, height', transform: 'translateZ(0)' }}
       >
-        {/* Low quality: shown instantly */}
-        <img src={zoom.low} alt={zoom.alt} className="absolute inset-0 h-full w-full object-cover" draggable={false} />
-        {/* High quality: fades in on top when loaded */}
         <img
-          src={zoom.full}
-          alt=""
-          aria-hidden="true"
-          decoding="async"
+          src={zoom.low}
+          alt={zoom.alt}
+          className="absolute inset-0 h-full w-full object-cover [backface-visibility:hidden]"
           draggable={false}
-          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
-          style={{ opacity: fullLoaded ? 1 : 0 }}
         />
       </div>
     </div>

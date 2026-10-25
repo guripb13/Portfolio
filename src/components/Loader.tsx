@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { gsap } from '../lib/gsap'
 import { resume } from '../data/resume'
+import { getProgress } from '../lib/siteLoad'
 
 interface Props {
   onReady: () => void
@@ -8,24 +9,19 @@ interface Props {
 }
 
 /* ───────── Tweakable design constants ───────── */
-const INITIALS = resume.name.split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
 const CX = 100            // centre of the 200x200 drawing
 const R = 44              // progress ring radius
 const RING_W = 8          // ring thickness
 const FAR = 150           // distance the blobs start from (entry)
 const CORE = 8            // radius where matter is swallowed (exit)
 const ORBIT = 68          // radius the blobs flow around the glass disc
-const BREATHE = 5         // how far each blob drifts in/out while orbiting
+const BREATHE = 0         // how far each blob drifts in/out while loading. 0 = steady circular orbit, so nothing swings toward or away from the centre (try 3-5 to bring the sway back)
 const BLOB_R = 7.5        // resting blob radius (circle state)
 const ARC = 36            // arc length of a stretched capsule / of the slim line
-const TILT = 20           // max tilt of a capsule around its own centre, in degrees
+const TILT = 0            // max tilt of a capsule while loading, in degrees. 0 = the tail always trails straight behind along the orbit, never swings toward the centre
 const SPEED = 0.95        // orbit speed, radians per second
 const PHASE_SPREAD = 0.35 // small offset between blobs; keep low so all four morph together
 const FLOW_CAPSULES = true // false = blobs stay plain circles while loading (no capsule morph at all)
-
-/* ring timing: lets the user actually SEE the ring fill, even when everything is cached */
-const RING_DELAY_MS = 300     // wait before the ring starts filling (use 100–300)
-const RING_FILL_MIN_MS = 1000 // the ring takes at least this long to go from empty to full
 
 /* entry */
 const ENTRY_SECONDS = 1.3 // time for one blob to fly in from far away and settle into orbit
@@ -33,7 +29,7 @@ const STAGGER = 0.1      // delay between the four blobs
 const SWIRL = 1.6         // extra angle (rad) swept while spiralling in
 
 /* exit: circle -> slim line (approach) -> fast revolve as a line -> dissolve */
-const FALL = 1.2       // total exit time of one blob (all three phases)
+const FALL = 1.0       // total exit time of one blob (all three phases)
 const EXIT_STAGGER = 0.03 // delay between blobs
 const P_APPROACH = 0.35   // fraction of the exit spent coming near the circle and thinning to a line
 const P_HOLD_END = 0.65   // fraction where the dissolve starts (between the two: fast revolve as a line)
@@ -74,9 +70,13 @@ const DOTS = [{}, {}, {}, {}] // one per blob; colours live in GRADS
 const GRAD_STOPS = 11    // colour stops per ball; more = a smoother, more even colour change from front to tail tip
 const FADE_FROM = 0.25   // where along the ball (0 = front, 1 = tail tip) the tail starts to fade out
 
-const MIN_VISIBLE_MS = 1800        // lets the entry animation finish before the exit can start
-const HARD_CAP_MS = 10000          // the loader can never stay forever
-const ASSET_TIMEOUT_MS = 8000      // a single slow asset never blocks the site
+/* progress pacing + status text */
+const PACE_MS = 2600               // the percentage never fills faster than this, so the entry animation and status words always get to play
+const PACE_MS_REDUCED = 900        // shorter wait when the visitor asked for reduced motion
+const MSG_MS = 800                 // how long each status word stays before the next one fades in
+const MESSAGES = ['Initializing', 'Loading', 'Touching up', 'Polishing'] // loops while loading (keep each under ~12 characters so it fits inside the circle)
+const EXIT_DELAY_MS = 380          // how long "Welcome" is held on screen before the exit animation starts
+const HARD_CAP_MS = 12000          // the loader can never stay forever
 const C = 2 * Math.PI * R
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
@@ -98,53 +98,6 @@ const rampColor = (g: [string, string, string], t: number) =>
   t < 0.5 ? mixHex(g[0], g[1], smooth(t / 0.5)) : mixHex(g[1], g[2], smooth((t - 0.5) / 0.5))
 const RAMP_T = Array.from({ length: GRAD_STOPS }, (_, j) => j / (GRAD_STOPS - 1))
 
-/* ───────── Real loading tracking ───────── */
-function trackAsset(src: string, set: (f: number) => void, isAlive: () => boolean) {
-  let finished = false
-  const finish = () => {
-    if (finished) return
-    finished = true
-    set(1)
-  }
-  const timeout = window.setTimeout(finish, ASSET_TIMEOUT_MS)
-
-  const fallback = () => {
-    const img = new Image()
-    img.onload = finish
-    img.onerror = finish
-    img.src = src
-  }
-
-  if (!src) { finish(); return () => window.clearTimeout(timeout) }
-
-  const ctrl = new AbortController()
-  fetch(src, { signal: ctrl.signal })
-    .then(async (res) => {
-      const total = Number(res.headers.get('content-length')) || 0
-      if (!res.body || !total) {
-        await res.blob()
-        finish()
-        return
-      }
-      const reader = res.body.getReader()
-      let got = 0
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        got += value.byteLength
-        if (!isAlive()) return
-        if (!finished) set(Math.min(got / total, 0.98))
-      }
-      finish()
-    })
-    .catch(() => { if (isAlive() && !finished) fallback() })
-
-  return () => {
-    window.clearTimeout(timeout)
-    ctrl.abort()
-  }
-}
-
 interface BlobState {
   rho: number
   th: number
@@ -156,6 +109,11 @@ interface BlobState {
   alpha: number
   E: number
   ready: boolean
+  trail: number[]   // past head positions, newest first: [x0,y0,x1,y1,...]
+}
+
+declare global {
+  interface Window { __bootDone?: () => void }
 }
 
 export default function Loader({ onReady, onExited }: Props) {
@@ -164,8 +122,10 @@ export default function Loader({ onReady, onExited }: Props) {
   const discRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<SVGCircleElement>(null)
   const arcRef = useRef<SVGCircleElement>(null)
-  const initialsRef = useRef<SVGTextElement>(null)
-  const statusRef = useRef<HTMLSpanElement>(null)
+  const statusRef = useRef<SVGTextElement>(null)
+  const pctRef = useRef<SVGTextElement>(null)
+  const srRef = useRef<HTMLSpanElement>(null) // screen-reader only: announces just "Loading" and "Welcome"
+  const ringBoxRef = useRef<HTMLDivElement>(null)
   const gooBlurRef = useRef<SVGFEGaussianBlurElement>(null)
   const gooMatRef = useRef<SVGFEColorMatrixElement>(null)
   const gooGroupRef = useRef<SVGGElement>(null)
@@ -183,12 +143,12 @@ export default function Loader({ onReady, onExited }: Props) {
     let alive = true
     let raf = 0
     let lastMsg = ''
+    let lastPct = -1
     let exitTimer = 0
     let shown = 0
     let best = 0
     let forceDone = false
     const started = performance.now()
-    const isAlive = () => alive
     const cleanups: Array<() => void> = []
 
     let last = performance.now()
@@ -197,76 +157,35 @@ export default function Loader({ onReady, onExited }: Props) {
     document.addEventListener('visibilitychange', onVis)
     cleanups.push(() => document.removeEventListener('visibilitychange', onVis))
 
-    const f = { photo: 0, about: 0, fonts: 0, load: 0 }
+    // The Loader is on screen: remove the instant HTML shell (and its slow-network overlay)
+    window.__bootDone?.()
 
-    cleanups.push(trackAsset(resume.photo, (v) => { f.photo = v }, isAlive))
-    cleanups.push(trackAsset(resume.aboutPhoto, (v) => { f.about = v }, isAlive))
-
-    const fontsP = Promise.race([
-      document.fonts?.load('700 1em "Bricolage Grotesque"') ?? Promise.resolve(),
-      new Promise((res) => window.setTimeout(res, 4000)),
-    ])
-    fontsP.catch(() => undefined).finally(() => { f.fonts = 1 })
-
-    if (document.readyState === 'complete') f.load = 1
-    else {
-      const onLoad = () => { f.load = 1 }
-      window.addEventListener('load', onLoad, { once: true })
-      cleanups.push(() => window.removeEventListener('load', onLoad))
-    }
-
-    const seen = new Map<HTMLImageElement, { done: boolean; t0: number }>()
-    const scanImages = () => {
-      const now = performance.now()
-      document.images && Array.from(document.images).forEach((img) => {
-        if (img.loading === 'lazy' || !(img.currentSrc || img.src)) return
-        let rec = seen.get(img)
-        if (!rec) {
-          rec = { done: img.complete, t0: now }
-          seen.set(img, rec)
-          if (!rec.done) {
-            const mark = () => { const r = seen.get(img); if (r) r.done = true }
-            img.addEventListener('load', mark, { once: true })
-            img.addEventListener('error', mark, { once: true })
-          }
-        }
-        if (!rec.done && now - rec.t0 > ASSET_TIMEOUT_MS) rec.done = true
-      })
-    }
-    scanImages()
-    const scanTimer = window.setInterval(scanImages, 250)
-    cleanups.push(() => window.clearInterval(scanTimer))
-
-    const readProgress = () => {
-      const rs = document.readyState
-      const dom = rs === 'complete' ? 1 : rs === 'interactive' ? 0.6 : 0.1
-
-      let imgDone = 0
-      seen.forEach((r) => { if (r.done) imgDone++ })
-      const imgF = seen.size ? imgDone / seen.size : 1
-
-      const parts: Array<[number, number]> = [
-        [1, dom],
-        [1.5, f.fonts],
-        [3, f.photo],
-        [3, f.about],
-        [2, imgF],
-        [1, f.load],
-      ]
-      let w = 0
-      let s = 0
-      for (const [pw, pf] of parts) { w += pw; s += pw * pf }
-      return forceDone ? 1 : s / w
-    }
+    /* Status word inside the circle: the old word fades up and out, then the new one fades in.
+       The previous swap is always killed first, so quick changes can never leave a stale word behind. */
+    let swapTl: gsap.core.Timeline | null = null
+    cleanups.push(() => swapTl?.kill())
 
     const say = (msg: string) => {
       const el = statusRef.current
       if (!el || msg === lastMsg) return
+      const first = lastMsg === ''
       lastMsg = msg
-      el.textContent = msg
-      if (!reduced) {
-        gsap.fromTo(el, { opacity: 0, y: 4 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out', overwrite: true })
+      swapTl?.kill()
+
+      if (reduced) {
+        el.textContent = msg
+        return
       }
+      if (first) {
+        el.textContent = msg
+        swapTl = gsap.timeline().fromTo(el, { opacity: 0, y: 4 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' })
+        return
+      }
+      swapTl = gsap
+        .timeline()
+        .to(el, { opacity: 0, y: -4, duration: 0.18, ease: 'power1.in' })
+        .add(() => { el.textContent = msg })
+        .fromTo(el, { y: 4 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' })
     }
 
     const S = {
@@ -284,7 +203,7 @@ export default function Loader({ onReady, onExited }: Props) {
     const fallEase = gsap.parseEase('power3.in')
 
     const state: BlobState[] = DOTS.map(() => ({
-      rho: FAR, th: 0, vr: 0, wi: 0, h: 0, len: 0.001, tilt: 0, alpha: 0, E: 0, ready: false,
+      rho: FAR, th: 0, vr: 0, wi: 0, h: 0, len: 0.001, tilt: 0, alpha: 0, E: 0, ready: false, trail: [],
     }))
     let nodes: SVGPathElement[] = []
     let grads: SVGLinearGradientElement[] = []
@@ -326,39 +245,69 @@ export default function Loader({ onReady, onExited }: Props) {
         const span = D + hw                                  // tail length incl. the round end when there is no tail yet
         const m = smooth(clamp01(D / (hw * 3 + 0.001)))      // 0 = round rear end, 1 = long pointed tail
 
-        /* body: centre line along the orbit, front (th+half) to rear (th-half) */
-        for (let j = 0; j < NB; j++) {
-          const ang = o.th + half - (j / (NB - 1)) * 2 * half
-          px[j] = CX + rho * Math.sin(ang)
-          py[j] = CX - rho * Math.cos(ang)
-          pw[j] = hw
-          tx[j] = Math.cos(ang)   // direction of travel (towards the front)
-          ty[j] = Math.sin(ang)
+        /* The HEAD leads. Every other point sits on the path the head already travelled,
+           so the body bends and follows the tip instead of sliding sideways. */
+        const bodyLen = o.len
+        const hx = CX + rho * Math.sin(o.th + half)
+        const hy = CX - rho * Math.cos(o.th + half)
+        const tr = o.trail
+        const n = tr.length / 2
+
+        let seg = 0
+        let segStart = 0
+        let sx = hx
+        let sy = hy
+        let ex = n > 0 ? tr[0] : hx
+        let ey = n > 0 ? tr[1] : hy
+        let segL = Math.hypot(ex - sx, ey - sy)
+        let exhausted = n === 0
+
+        for (let j = 0; j < NP; j++) {
+          const s = j < NB
+            ? (j / (NB - 1)) * bodyLen
+            : bodyLen + ((j - NB + 1) / (NT - 1)) * span
+
+          while (!exhausted && segStart + segL < s) {
+            segStart += segL
+            seg++
+            sx = ex
+            sy = ey
+            if (seg >= n) { exhausted = true; break }
+            ex = tr[seg * 2]
+            ey = tr[seg * 2 + 1]
+            segL = Math.hypot(ex - sx, ey - sy)
+          }
+
+          if (!exhausted) {
+            const f = segL > 1e-6 ? (s - segStart) / segL : 0
+            px[j] = sx + (ex - sx) * f
+            py[j] = sy + (ey - sy) * f
+          } else {
+            const rad = Math.max(Math.hypot(sx - CX, sy - CX), 0.5)
+            const a = Math.atan2(sx - CX, CX - sy) - (s - segStart) / rad
+            px[j] = CX + rad * Math.sin(a)
+            py[j] = CX - rad * Math.cos(a)
+          }
+
+          if (j < NB) {
+            pw[j] = hw
+          } else {
+            const u = (j - NB + 1) / (NT - 1)
+            const round = Math.sqrt(Math.max(1 - u * u, 0))
+            const cone = Math.pow(1 - u, TAIL_TAPER)
+            pw[j] = hw * lerp(round, cone, m)
+          }
         }
 
-        /* tail: continues from the rear of the body along the extrapolated path, narrowing to a point */
-        const rearAng = o.th - half
-        for (let k = 1; k < NT; k++) {
-          const u = k / (NT - 1)
-          const s = u * span
-          const tau = speed > 0.5 ? s / speed : 0
-          const rr = Math.max(rho - o.vr * tau, CORE)
-          const aa = rearAng - o.wi * tau - (speed > 0.5 ? 0 : s / rho)
-          const idx = NB - 1 + k
-          px[idx] = CX + rr * Math.sin(aa)
-          py[idx] = CX - rr * Math.cos(aa)
-          const round = Math.sqrt(Math.max(1 - u * u, 0))
-          const cone = Math.pow(1 - u, TAIL_TAPER)
-          pw[idx] = hw * lerp(round, cone, m)
-        }
-        for (let idx = NB; idx < NP; idx++) {
+        for (let idx = 0; idx < NP; idx++) {
           const a = Math.max(idx - 1, 0)
           const b = Math.min(idx + 1, NP - 1)
           const dx = px[a] - px[b]
           const dy = py[a] - py[b]
           const dl = Math.hypot(dx, dy)
           if (dl > 1e-4) { tx[idx] = dx / dl; ty[idx] = dy / dl }
-          else { tx[idx] = tx[idx - 1]; ty[idx] = ty[idx - 1] }
+          else if (idx > 0) { tx[idx] = tx[idx - 1]; ty[idx] = ty[idx - 1] }
+          else { tx[idx] = 1; ty[idx] = 0 }
         }
 
         /* closed outline */
@@ -421,7 +370,9 @@ export default function Loader({ onReady, onExited }: Props) {
         const s = lerp(sFlow, 1, approach)
 
         const breathe = Math.sin(T * 1.1 + i * 1.9)
-        const orbitR = ORBIT + breathe * BREATHE * (1 - 0.6 * sFlow) * (1 - approach) - sFlow * 2.5 * (1 - approach)
+        // While loading the orbit radius stays constant, so the tails follow the circle and are never pulled inward.
+        // The inward pull only happens in the exit animation (at 100%), through `approach` and `fall` below.
+        const orbitR = ORBIT + breathe * BREATHE * (1 - 0.6 * sFlow) * (1 - approach)
         let rho = lerp(FAR, orbitR, near)
         rho = lerp(rho, NEAR, approach)
         rho = lerp(rho, CORE, fall)
@@ -462,6 +413,16 @@ export default function Loader({ onReady, onExited }: Props) {
         o.len = len
         o.tilt = tilt
         o.alpha = alpha
+
+        // remember where the tip (head) has been
+        {
+          const halfA = o.len / (2 * Math.max(o.rho, 0.5))
+          o.trail.unshift(
+            CX + o.rho * Math.sin(o.th + halfA),
+            CX - o.rho * Math.cos(o.th + halfA),
+          )
+          if (o.trail.length > 240) o.trail.length = 240
+        }
       }
 
       const goo = smooth(clamp01((S.exit - P_HOLD_END * FALL) / (0.6 * FALL)))
@@ -503,7 +464,7 @@ export default function Loader({ onReady, onExited }: Props) {
         S.stretch = 0.5
         S.speed = 0
         step(0)
-        gsap.set([trackRef.current, initialsRef.current, discRef.current], { opacity: 1 })
+        gsap.set([trackRef.current, pctRef.current, statusRef.current, discRef.current], { opacity: 1 })
         return
       }
 
@@ -517,13 +478,14 @@ export default function Loader({ onReady, onExited }: Props) {
         .to(S, { speed: SPEED, duration: 2.4, ease: 'power2.inOut' }, 0.2)
         .to(S, { stretch: 1, duration: 1.8, ease: 'power2.inOut' }, 1.5)
         .to(discRef.current, { opacity: 1, scale: 1, duration: 1.1, ease: 'power3.out' }, 0.3)
-        .to([trackRef.current, initialsRef.current], { opacity: 1, duration: 0.8, ease: 'power2.out' }, 0.2)
+        .to([trackRef.current, pctRef.current], { opacity: 1, duration: 0.8, ease: 'power2.out' }, 0.2)
     }, curtainRef)
 
     const triggerExit = () => {
       if (isExiting.current) return
       isExiting.current = true
       say('Welcome')
+      if (srRef.current) srRef.current.textContent = 'Welcome'
 
       ctx.add(() => {
         if (reduced) {
@@ -536,7 +498,7 @@ export default function Loader({ onReady, onExited }: Props) {
         tl.to(S, { exit: FALL_TOTAL, duration: FALL_TOTAL, ease: 'none' }, 0)
           .to(arcRef.current, { attr: { 'stroke-width': RING_W + 3 }, duration: 0.22, yoyo: true, repeat: 1, ease: 'power1.inOut' }, FALL_TOTAL * 0.82)
           .to(discRef.current, { scale: IS_LITE ? 1.03 : 1.07, duration: 0.5, yoyo: true, repeat: 1, ease: 'power2.inOut' }, FALL_TOTAL * 0.75)
-          .addLabel('out', FALL_TOTAL + 0.1)
+          .addLabel('out', FALL_TOTAL)
           .add(() => readyRef.current(), 'out')
           .to(contentRef.current, {
             y: -44, opacity: 0, scale: 0.96,
@@ -554,12 +516,14 @@ export default function Loader({ onReady, onExited }: Props) {
       const dt = Math.min((now - prevT) / 1000, 0.1)
       prevT = now
 
-      best = Math.max(best, readProgress())
-
-      const paced = clamp01((now - started - RING_DELAY_MS) / RING_FILL_MIN_MS)
+      // REAL progress of the website (code, photos, fonts, layout). The ring never runs ahead of it,
+      // and it is also paced (never faster than PACE_MS) so a cached, instant load still looks smooth.
+      const elapsed = now - started
+      const paced = Math.sin(clamp01(elapsed / (reduced ? PACE_MS_REDUCED : PACE_MS)) * (Math.PI / 2))
+      best = Math.max(best, forceDone ? 1 : getProgress())
       const goal = Math.min(best, paced)
 
-      shown += (goal - shown) * (1 - Math.exp(-dt * 6))
+      shown += (goal - shown) * (1 - Math.exp(-dt * 9))
       if (goal >= 1 && 1 - shown < 0.003) shown = 1
 
       const arc = arcRef.current
@@ -568,11 +532,19 @@ export default function Loader({ onReady, onExited }: Props) {
         arc.style.opacity = shown > 0.006 ? '1' : '0'
       }
 
-      if (shown >= 1) say('Welcome')
-      else if (shown > 0.35) say('Bringing everything together…')
+      const pct = Math.round(shown * 100)
+      if (pct !== lastPct) {
+        lastPct = pct
+        if (pctRef.current) pctRef.current.textContent = `${pct}%`
+        ringBoxRef.current?.setAttribute('aria-valuenow', String(pct))
+      }
 
-      if (shown >= 1 && now - started >= MIN_VISIBLE_MS) {
-        exitTimer = window.setTimeout(() => { if (alive) triggerExit() }, 220)
+      if (shown >= 1) say('Welcome')
+      else if (shown > 0.9) say('Almost there')
+      else say(MESSAGES[Math.floor(elapsed / MSG_MS) % MESSAGES.length])
+
+      if (shown >= 1) {
+        exitTimer = window.setTimeout(() => { if (alive) triggerExit() }, EXIT_DELAY_MS)
         return
       }
       raf = requestAnimationFrame(loop)
@@ -604,7 +576,15 @@ export default function Loader({ onReady, onExited }: Props) {
       }}
     >
       <div ref={contentRef} className="w-full max-w-sm flex flex-col items-center will-change-[transform,opacity,filter]">
-        <div className="relative w-[min(58vw,15rem)] aspect-square select-none" aria-hidden="true">
+        <div
+          ref={ringBoxRef}
+          role="progressbar"
+          aria-label="Website loading progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={0}
+          className="relative w-[min(58vw,15rem)] aspect-square select-none"
+        >
           <svg
             viewBox="0 0 200 200"
             className="absolute inset-0 w-full h-full overflow-visible"
@@ -686,29 +666,42 @@ export default function Loader({ onReady, onExited }: Props) {
               style={{ opacity: 0, filter: 'drop-shadow(0 0 6px rgb(var(--accent) / .65))' }}
             />
 
+            {/* Percentage in the middle of the ring */}
             <text
-              ref={initialsRef}
-              x={CX} y={CX + 1}
+              ref={pctRef}
+              x={CX} y={CX - 6}
               textAnchor="middle"
               dominantBaseline="central"
-              fontSize="28"
+              fontSize="23"
               fontWeight="800"
-              letterSpacing="1"
-              style={{ opacity: 0, fill: 'var(--color-frost)', fontFamily: '"Bricolage Grotesque", sans-serif' }}
+              style={{ opacity: 0, fill: 'var(--color-frost)', fontFamily: '"Bricolage Grotesque", sans-serif', fontVariantNumeric: 'tabular-nums' }}
+              aria-hidden="true"
             >
-              {INITIALS}
+              0%
+            </text>
+
+            {/* Looping status word under the percentage ("Initializing", "Touching up"... then "Welcome") */}
+            <text
+              ref={statusRef}
+              x={CX} y={CX + 15}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="9"
+              fontWeight="500"
+              letterSpacing="0.4"
+              style={{ opacity: 0, fill: 'var(--color-mist)', fontFamily: '"Instrument Sans", sans-serif' }}
+              aria-hidden="true"
+            >
+              Initializing
             </text>
           </svg>
         </div>
 
-        <div className="mt-6 text-center">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-frost">{resume.name}</h1>
-          <p className="mt-1 text-xs sm:text-sm font-medium tracking-widest uppercase text-neon-soft">
-            AI &amp; Full-Stack Developer
-          </p>
-          <span ref={statusRef} role="status" className="mt-4 block text-xs sm:text-sm text-mist">
-            Preparing your portfolio…
-          </span>
+        {/* Name block. -mt-4 pulls it close to the circle; relative z-10 keeps it above the orbiting balls. */}
+        <div className="relative z-10 -mt-4 text-center">
+          <p className="text-[11px] sm:text-xs font-medium tracking-[0.22em] uppercase text-neon-soft">Presented by</p>
+          <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold tracking-tight text-frost">{resume.name}</h1>
+          <span ref={srRef} role="status" className="sr-only">Loading the website</span>
         </div>
       </div>
     </div>

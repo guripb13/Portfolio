@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ReactLenis, useLenis, type LenisRef } from 'lenis/react'
 import { gsap, ScrollTrigger } from './lib/gsap'
 import { useReducedMotion } from './lib/useMedia'
+import { markLayoutReady } from './lib/siteLoad'
 import CustomCursor from './components/CustomCursor'
 import AmbientGlow from './components/AmbientGlow'
 import SectionBackdrop from './components/SectionBackdrop'
@@ -25,6 +26,21 @@ export default function App({ isAppLoaded = false }: { isAppLoaded?: boolean }) 
   const [activeProject, setActiveProject] = useState<number | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
   const [pageHidden, setPageHidden] = useState(false)
+  // Pending delayed steps of the open / close animation. Cancelled whenever a new one starts,
+  // so a quick close-then-open (or open-then-close) can never apply a stale step.
+  const timers = useRef<number[]>([])
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(window.setTimeout(fn, ms))
+  }, [])
+  const cancelLater = useCallback(() => {
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = []
+  }, [])
+
+  // Tell the Loader the layout is mounted and painted (drives the last part of the ring)
+  useEffect(() => {
+    markLayoutReady()
+  }, [])
 
   useEffect(() => {
     // Lenis must be driven by GSAP's ticker, otherwise pinned sections desync.
@@ -33,34 +49,38 @@ export default function App({ isAppLoaded = false }: { isAppLoaded?: boolean }) 
     gsap.ticker.lagSmoothing(0)
     // Recalculate trigger positions once web fonts have changed text metrics
     document.fonts?.ready.then(() => ScrollTrigger.refresh())
-    return () => gsap.ticker.remove(raf)
-  }, [])
+    return () => {
+      gsap.ticker.remove(raf)
+      cancelLater()
+    }
+  }, [cancelLater])
 
   const handleOpenProject = (index: number) => {
+    cancelLater()
     setActiveProject(index)
     setViewerOpen(true)
     lenisRef.current?.lenis?.stop()
     // Hide page behind the viewer once open to keep animations lightweight
-    setTimeout(() => {
-      setPageHidden(true)
-    }, 700)
+    later(() => setPageHidden(true), 700)
   }
 
   const handleCloseViewer = () => {
+    cancelLater()
     setPageHidden(false)
     setViewerOpen(false)
     lenisRef.current?.lenis?.start()
-    setTimeout(() => {
+    later(() => {
       setActiveProject(null)
       ScrollTrigger.refresh()
     }, 700)
   }
 
   const handleContactFromViewer = () => {
+    cancelLater()
     setPageHidden(false)
     setViewerOpen(false)
     lenisRef.current?.lenis?.start()
-    setTimeout(() => {
+    later(() => {
       setActiveProject(null)
       const el = document.getElementById('contact')
       if (el) {

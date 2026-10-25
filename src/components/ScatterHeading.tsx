@@ -16,13 +16,16 @@ interface Props {
   text: string
   className?: string
   mobileMaxLines?: number
+  scale?: number
+  justify?:boolean
+  bold?: boolean
 }
 
 const FONT_FAMILY = '"Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif'
 const WEIGHT = 800
 const MIN_FIT_SIZE = 13 // never shrink the fitted headline below this (px)
 
-export default function ScatterHeading({ text, className = '', mobileMaxLines }: Props) {
+export default function ScatterHeading({ text, className = '', mobileMaxLines, scale = 1, justify = false ,bold = false}: Props) {
   const wrap = useRef<HTMLSpanElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const reduced = useReducedMotion()
@@ -62,7 +65,7 @@ export default function ScatterHeading({ text, className = '', mobileMaxLines }:
       const narrow = w < 480
 
       // Responsive font size capped to avoid vertical blowout
-      const base = Math.max(38, Math.min(w * 0.095, 84, window.innerHeight * 0.12))
+      const base = Math.max(38, Math.min(w * 0.095, 84, window.innerHeight * 0.12)) * scale
 
       // Greedy word-wrap using the real font metrics
       const m = document.createElement('canvas').getContext('2d')!
@@ -120,7 +123,7 @@ export default function ScatterHeading({ text, className = '', mobileMaxLines }:
       const p = Math.max(fine ? 4 : 3, Math.round(pitchCss * S)) // grid pitch in off-screen pixels (integer)
       const pitch = p / S                                          // grid pitch in CSS pixels
       snapGrid = pitch % 0.5 === 0
-      rad = Number((pitch * 0.43).toFixed(2))
+      rad = Number((pitch * (bold ? 0.3 : 0.43)).toFixed(2))
       R = Math.max(size * 1.15, 56) // pointer repulsion radius (never tiny on small text)
 
       // Rasterise the text on an off-screen canvas
@@ -134,14 +137,39 @@ export default function ScatterHeading({ text, className = '', mobileMaxLines }:
       o.textBaseline = 'top'
       o.fillStyle = '#ffffff'
       setSpacing(o)
+            // Bold: thicken every letter by stroking its outline as well as filling it
+      const lw = bold ? size * S * 0.05 : 0
+      const pad = lw / 2
+      o.strokeStyle = '#ffffff'
+      o.lineWidth = lw
+      o.lineJoin = 'round'
+      const draw = (t: string, x: number, y: number) => {
+        o.fillText(t, x + pad, y + pad)
+        if (bold) o.strokeText(t, x + pad, y + pad)
+      }
+
       lines.forEach((l, i) => {
-        o.fillText(l, 0, i * lineH * S)
+        const words = l.split(' ')
+        const isLast = i === lines.length - 1
+        if (justify && !isLast && words.length > 1) {
+          // spread the leftover width evenly between the words
+          const target = (w - 2) * S
+          const used = words.reduce((sum, wd) => sum + o.measureText(wd).width, 0)
+          const gap = (target - used) / (words.length - 1)
+          let x = 0
+          for (const wd of words) {
+            draw(wd, x, i * lineH * S)
+            x += o.measureText(wd).width + gap
+          }
+        } else {
+          draw(l, 0, i * lineH * S)
+        }
       })
 
       const data = o.getImageData(0, 0, ow, oh).data
 
       const next: Dot[] = []
-      const COVERAGE = 0.38 // a dot appears when at least 38% of its cell is covered by the letter
+      const COVERAGE = bold ? 0.4 : 0.38  // a dot appears when at least 38% of its cell is covered by the letter
       const cellArea = p * p * 255
 
       // Look at EVERY pixel of each cell so thin strokes, curves and diagonals are not missed
@@ -308,7 +336,7 @@ export default function ScatterHeading({ text, className = '', mobileMaxLines }:
       window.removeEventListener('pointermove', onMove)
       document.documentElement.removeEventListener('pointerleave', onLeave)
     }
-  }, [text, reduced, theme, mobileMaxLines])
+  }, [text, reduced, theme, mobileMaxLines,scale,justify,bold])
 
   return (
     <h1 className={className}>

@@ -62,13 +62,26 @@ html.theme-switching *::after {
     stroke           var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow       var(--theme-ms, 900ms) cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
-
+/* ── Buttery theme change (View Transitions API) ──
+   While the browser cross-fades the two snapshots, no element may run its own colour transition. */
+html.theme-vt,
+html.theme-vt *,
+html.theme-vt *::before,
+html.theme-vt *::after {
+  transition: none !important;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--theme-vt-ms, 650ms);
+  animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+  mix-blend-mode: normal;   /* plain cross-fade: no brightness pop in the middle */
+}
 /* Whole-screen blur: one fixed frosted layer that breathes in and out while the colours change underneath */
 @keyframes theme-screen-blur {
   0%   { -webkit-backdrop-filter: blur(0);   backdrop-filter: blur(0); }
-  30%  { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(1px); }
-  50%  { -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(2px); }
-  70%  { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(1px); }
+  30%  { -webkit-backdrop-filter: blur(1px); backdrop-filter: blur(1px); }
+  50%  { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+  70%  { -webkit-backdrop-filter: blur(1px); backdrop-filter: blur(1px); }
   100% { -webkit-backdrop-filter: blur(0);   backdrop-filter: blur(0); }
 }
 html.theme-switching::after {
@@ -110,6 +123,30 @@ body {
   height: 0px;
 }
 h1, h2, h3 { font-family: var(--font-display); line-height: 1.02; letter-spacing: -0.03em; font-weight: 700; }
+
+/* ───────── No accidental selection / saving / link previews ─────────
+   Normal text (paragraphs, headings, About) stays selectable.
+   Buttons, links, nav, images and the "Click to enlarge" caption do not. */
+a, button, [role="button"], .btn, nav, summary, label, kbd,
+img, svg, canvas, video {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;          /* iOS: no link preview / save-image sheet on long-press */
+  -webkit-tap-highlight-color: transparent;
+}
+a, a *, button, button *, img, svg, canvas, video {
+  -webkit-user-drag: none;              /* can't drag links, buttons or images out of the page */
+  user-drag: none;
+}
+/* All images: clicks and long-presses go to the parent, so the browser's
+   "Save image / Copy image / Open image in new tab" menu never targets the picture */
+img {
+  pointer-events: none;
+}
+a *, button *, [role="button"] * {
+  -webkit-user-select: none;
+  user-select: none;
+}
 ::selection { background: rgb(var(--accent) / 0.45); color: #fff; }
 
 :focus-visible { outline: 2px solid var(--color-neon-soft); outline-offset: 4px; border-radius: 8px; }
@@ -511,16 +548,18 @@ html[data-nav-gliding] .cursor-ring {
 }
 
 /* Division track line centering */
+/* Division track line centering */
+/* Division track line centering (2px line, centred exactly on the dot centre) */
 .tl-track > div:first-of-type {
-  width: 1px !important;
+  width: 2px !important;
   left: 16px !important;
-  margin-left: -0.5px !important;
+  margin-left: 0 !important;
   transform: none !important;
 }
 @media (min-width: 768px) {
   .tl-track > div:first-of-type {
     left: 50% !important;
-    margin-left: -0.5px !important;
+    margin-left: 0 !important;
     transform: none !important;
   }
 }
@@ -1177,4 +1216,15 @@ html[data-theme="light"] .cursor-dot {
 @media (max-width: 1023px) {
   .hdr-btn { width: 2.75rem; height: 2.75rem; padding: 0 !important; }
   .hdr-btn > span.font-medium { display: none; }
+}
+
+/* Project viewer certificate card: slower, smoother hover glow */
+.viewer-visual {
+  transition:
+    box-shadow 1s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.9s ease,
+    border-color 0.9s ease;
+}
+.viewer-visual::before {
+  transition: opacity 1s cubic-bezier(0.22, 1, 0.36, 1);
 }

@@ -9,7 +9,75 @@ const { about } = resume
 
 /** Shared card styling. min-w-0 / min-h-0 / overflow-hidden guarantee content can never push a card out of its cell. */
 const CARD = 'ab-card glass min-h-0 min-w-0 overflow-hidden p-5 lg:p-[clamp(1rem,2.6svh,1.75rem)]'
-const SMALL = 'text-[clamp(0.75rem,1.9svh,0.95rem)] leading-snug'
+const SMALL = 'ab-small text-[clamp(0.75rem,1.9svh,0.95rem)] leading-snug'
+
+/** Same condition as the landscape CSS below: phones turned sideways. */
+const LANDSCAPE_QUERY = '(orientation:landscape) and (max-height:520px) and (max-width:1023px)'
+
+/**
+ * Phones turned sideways (short, wide screens): the About cards are NOT squeezed onto one screen any more.
+ * They flow down the page in rows of three (a 12-column "bento" with uneven column spans), keeping
+ * comfortable, readable text sizes (rem based, not height based). The section scrolls naturally and the
+ * existing scroll-reveal animation plays row by row.
+ *
+ *   Row 1:  Portrait (3)  |  Intro (6)       |  4+ years (3)
+ *   Row 2:  6 certs (3)   |  Skills (6)      |  Languages (3)
+ *   Row 3:  Education (12)
+ *   Row 4:  Current focus bar
+ */
+const LANDSCAPE_CSS = `
+@media (orientation:landscape) and (max-height:520px) and (max-width:1023px){
+  #about{min-height:0 !important;justify-content:flex-start !important;padding-top:4.5rem !important;padding-bottom:2rem !important}
+  #about > div{max-width:none !important;padding-left:max(1rem,env(safe-area-inset-left)) !important;padding-right:max(1rem,env(safe-area-inset-right)) !important}
+
+  #about .about-grid{
+    display:grid !important;
+    grid-template-columns:repeat(12,minmax(0,1fr)) !important;
+    grid-template-rows:none !important;
+    grid-auto-rows:auto !important;
+    height:auto !important;
+    gap:.75rem !important;
+    align-items:stretch;
+  }
+  #about .glass{border-radius:1rem !important}
+  #about .ab-card{min-height:0 !important;padding:.9rem 1rem !important}
+
+  /* ── Row 1 ── */
+  #about [data-step="portrait"]{grid-column:1 / span 3 !important;grid-row:1 !important;aspect-ratio:auto !important;min-height:15rem !important;padding:0 !important}
+  #about [data-step="intro"]{grid-column:4 / span 6 !important;grid-row:1 !important;gap:.75rem !important;justify-content:space-between}
+  #about [data-step="stat-4"]{grid-column:10 / span 3 !important;grid-row:1 !important;gap:.5rem !important}
+
+  /* ── Row 2 ── */
+  #about [data-step="stat-6"]{grid-column:1 / span 3 !important;grid-row:2 !important;gap:.5rem !important}
+  #about [data-step="skills"]{grid-column:4 / span 6 !important;grid-row:2 !important}
+  #about [data-step="languages"]{grid-column:10 / span 3 !important;grid-row:2 !important;gap:.25rem !important}
+
+  /* ── Row 3 ── */
+  #about [data-step="education"]{grid-column:1 / -1 !important;grid-row:3 !important;gap:.75rem !important;justify-content:space-between}
+
+  #about .ab-photo{inset:.5rem !important;border-radius:.8rem !important}
+
+  /* Readable text sizes (fixed rem, independent of the short screen height) */
+  #about .ab-head{font-size:1.6rem !important;line-height:1.1 !important}
+  #about .ab-summary{font-size:.92rem !important;line-height:1.5 !important;margin-top:.5rem !important;max-width:none !important}
+  #about .ab-small{font-size:.8rem !important;line-height:1.35 !important}
+  #about .ab-loc{gap:.45rem !important}
+  #about .ab-h3{font-size:1.1rem !important;line-height:1.15 !important}
+  #about .ab-statnum{font-size:2.6rem !important}
+  #about .ab-skills{margin-top:.6rem !important;gap:.4rem !important}
+  #about .ab-chip{font-size:.74rem !important;padding:.12rem .6rem !important}
+  #about .ab-school{font-size:1.35rem !important;line-height:1.15 !important}
+  #about [data-step="education"] a{font-size:.72rem !important;padding:.25rem .75rem !important}
+  #about .ab-langs{margin-top:.4rem !important}
+  #about .ab-langs li{padding-top:.25rem !important;padding-bottom:.25rem !important}
+
+  /* Current focus bar */
+  #about .ab-focus{margin-top:.75rem !important;flex-direction:row !important;align-items:center !important;justify-content:space-between !important;gap:1rem !important;padding:.8rem 1.1rem !important}
+  #about .ab-focus h3{font-size:1.15rem !important}
+  #about .ab-focus p{font-size:.85rem !important;margin-top:.15rem !important}
+  #about .ab-focus .btn{width:auto !important;padding:.55rem 1.1rem !important;font-size:.85rem !important;gap:.4rem !important}
+}
+`
 
 /**
  * About: bento layout with smooth entrance animation triggered while scrolling the first time,
@@ -158,11 +226,14 @@ export default function About() {
     }
 
     /* ── Smooth natural scroll reveal (matching phone view across all screens):
-          Reveals cards in exact occurrence order. Stat-6 immediately follows Stat-4 without delay. ── */
+          Reveals cards in exact occurrence order. Outside landscape, Stat-6 immediately follows Stat-4.
+          In phone landscape, Stat-6 sits in row 2 with Skills + Languages, so it reveals WITH them
+          (its own position), never early with the row-1 stat. ── */
     const buildFlow = () => {
       if (playedRef.current) { showFinal(); return }
       const sequence = getSequence()
       const cardStat4 = rootEl.querySelector<HTMLElement>('[data-step="stat-4"]')
+      const isPhoneLandscape = window.matchMedia(LANDSCAPE_QUERY).matches
 
       sequence.forEach((card) => {
         if (!doneCards.has(card)) setCounts(card, false)
@@ -173,7 +244,7 @@ export default function About() {
         intro: 0,
         portrait: 0,
         'stat-4': 0,
-        'stat-6': 0.06,
+        'stat-6': isPhoneLandscape ? 0 : 0.06,
         skills: 0,
         education: 0,
         languages: 0.05,
@@ -184,8 +255,9 @@ export default function About() {
         if (doneCards.has(card)) return
         const step = card.dataset.step ?? ''
         const isStat6 = step === 'stat-6'
-        // Pair stat-6 with stat-4's scroll position so it never waits for extra scroll travel
-        const triggerEl = isStat6 && cardStat4 ? cardStat4 : card
+        // Pair stat-6 with stat-4's scroll position (portrait / desktop only).
+        // In phone landscape it uses its own position, so it animates together with Skills + Languages.
+        const triggerEl = isStat6 && cardStat4 && !isPhoneLandscape ? cardStat4 : card
 
         const tl = gsap.timeline({
           defaults: { ease: 'power2.out' },
@@ -220,7 +292,8 @@ export default function About() {
 
   return (
     <section id="about" ref={root} className="relative flex min-h-svh flex-col justify-center pb-16 pt-24 lg:pb-10">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 md:px-12">
+      <style>{LANDSCAPE_CSS}</style>
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
         {/* Mobile: 2-col flow · Tablet: portrait beside stats · Desktop (tall): 3-col, 6-row one-screen bento · Desktop (short): same bento at natural height */}
         <div className="about-grid">
 
@@ -228,9 +301,9 @@ export default function About() {
           <div data-step="intro" className={`${CARD} col-span-2 flex flex-col justify-between gap-5 lg:col-span-1 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:gap-0`}>
             <div>
               <h2 className="ab-head text-[clamp(1.9rem,5.2svh,3.1rem)]"><Words text="A bit about me" /></h2>
-              <p className="ab-line mt-[clamp(0.5rem,1.6svh,1rem)] max-w-[44ch] text-[clamp(0.95rem,2.3svh,1.1rem)] leading-relaxed text-mist">{about.summary}</p>
+              <p className="ab-line ab-summary mt-[clamp(0.5rem,1.6svh,1rem)] max-w-[44ch] text-[clamp(0.95rem,2.3svh,1.1rem)] leading-relaxed text-mist">{about.summary}</p>
             </div>
-            <p className={`ab-line flex items-center gap-2 text-mist ${SMALL}`}>
+            <p className={`ab-line ab-loc flex items-center gap-2 text-mist ${SMALL}`}>
               <span aria-hidden="true" className="size-2 rounded-full bg-neon shadow-[0_0_10px_rgb(61_139_255)]" />{about.location}
             </p>
           </div>
@@ -254,7 +327,7 @@ export default function About() {
             data-step="stat-4"
             className={`${CARD} col-span-1 flex min-h-[8.5rem] flex-col justify-between gap-3 md:col-start-2 lg:min-h-0 lg:gap-0 lg:col-start-3 lg:row-span-2 lg:row-start-1`}
           >
-            <p aria-label={`${about.stats[0].value}${about.stats[0].suffix}`} className="font-display tabular-nums text-[clamp(2.5rem,7svh,5rem)] font-bold leading-none tracking-tight">
+            <p aria-label={`${about.stats[0].value}${about.stats[0].suffix}`} className="ab-statnum font-display tabular-nums text-[clamp(2.5rem,7svh,5rem)] font-bold leading-none tracking-tight">
               <span aria-hidden="true" data-count={about.stats[0].value}>{about.stats[0].value}</span><span aria-hidden="true">{about.stats[0].suffix}</span>
             </p>
             <p className={`ab-line text-mist ${SMALL}`}>{about.stats[0].label}</p>
@@ -273,7 +346,7 @@ export default function About() {
             className={`${CARD} group/stat relative col-span-1 flex min-h-[8.5rem] flex-col justify-between gap-3 text-left transition-[border-color,background-color] duration-200 hover:border-white/30 hover:bg-white/[0.08] cursor-pointer md:col-start-2 lg:min-h-0 lg:gap-0 lg:col-start-3 lg:row-span-2 lg:row-start-3`}
           >
             <div className="flex items-start justify-between">
-              <p aria-label={`${about.stats[1].value}${about.stats[1].suffix}`} className="font-display tabular-nums text-[clamp(2.5rem,7svh,5rem)] font-bold leading-none tracking-tight">
+              <p aria-label={`${about.stats[1].value}${about.stats[1].suffix}`} className="ab-statnum font-display tabular-nums text-[clamp(2.5rem,7svh,5rem)] font-bold leading-none tracking-tight">
                 <span aria-hidden="true" data-count={about.stats[1].value}>{about.stats[1].value}</span><span aria-hidden="true">{about.stats[1].suffix}</span>
               </p>
               <span
@@ -295,8 +368,8 @@ export default function About() {
             data-skills-section
             className={`${CARD} col-span-2 flex flex-col lg:col-span-1 lg:col-start-1 lg:row-span-3 lg:row-start-4`}
           >
-            <h3 className="ab-line font-display text-[clamp(1.1rem,2.6svh,1.4rem)]">What I work with</h3>
-            <ul className="mt-[clamp(0.6rem,1.8svh,1rem)] flex flex-wrap content-start gap-1.5 sm:gap-2">
+            <h3 className="ab-line ab-h3 font-display text-[clamp(1.1rem,2.6svh,1.4rem)]">What I work with</h3>
+            <ul className="ab-skills mt-[clamp(0.6rem,1.8svh,1rem)] flex flex-wrap content-start gap-1.5 sm:gap-2">
               {resume.skills.map((s) => (
                 <li key={s} className="ab-chip rounded-full border border-white/15 bg-white/[0.07] px-2.5 py-0.5 text-[clamp(0.75rem,1.6svh,0.875rem)] transition-colors duration-300 hover:bg-white/[0.14]">{s}</li>
               ))}
@@ -306,7 +379,7 @@ export default function About() {
           {/* Education */}
           <div data-step="education" className={`${CARD} col-span-2 flex flex-col justify-between gap-4 sm:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-5 lg:gap-0`}>
             <div className="flex items-center justify-between gap-2">
-              <h3 className="ab-line font-display text-[clamp(1.1rem,2.6svh,1.4rem)]">Education</h3>
+              <h3 className="ab-line ab-h3 font-display text-[clamp(1.1rem,2.6svh,1.4rem)]">Education</h3>
               <a
                 href={about.education.website || 'https://sliet.ac.in/'}
                 target="_blank"
@@ -322,7 +395,7 @@ export default function About() {
               </a>
             </div>
             <div>
-              <p className="ab-line font-display text-[clamp(1.4rem,3.8svh,1.9rem)] font-bold leading-tight">{about.education.school}</p>
+              <p className="ab-line ab-school font-display text-[clamp(1.4rem,3.8svh,1.9rem)] font-bold leading-tight">{about.education.school}</p>
               <p className={`ab-line mt-1 text-mist ${SMALL}`}>{about.education.course}</p>
               <p className={`ab-line ${SMALL}`}>{about.education.period}</p>
             </div>
@@ -330,8 +403,8 @@ export default function About() {
 
           {/* Languages */}
           <div data-step="languages" className={`${CARD} col-span-2 flex flex-col gap-2 sm:col-span-1 lg:col-start-3 lg:row-span-2 lg:row-start-5 lg:gap-0`}>
-            <h3 className="ab-line font-display text-[clamp(1.1rem,2.6svh,1.4rem)]">Languages</h3>
-            <ul className="mt-2 flex flex-1 flex-col justify-around">
+            <h3 className="ab-line ab-h3 font-display text-[clamp(1.1rem,2.6svh,1.4rem)]">Languages</h3>
+            <ul className="ab-langs mt-2 flex flex-1 flex-col justify-around">
               {about.languages.map((l, i) => (
                 <li key={l.name} className={`ab-row relative flex items-baseline justify-between gap-3 py-1.5 lg:py-1 ${SMALL}`}>
                   <span>{l.name}</span><span className="text-right text-mist">{l.level}</span>
@@ -343,14 +416,14 @@ export default function About() {
         </div>
 
         {/* Current focus */}
-        <div data-step="focus" className="ab-card glass mt-3 flex flex-col gap-4 p-5 sm:mt-4 sm:flex-row sm:items-center sm:justify-between lg:px-8 lg:py-[clamp(0.9rem,2.4svh,1.5rem)]">
+        <div data-step="focus" className="ab-card ab-focus glass mt-3 flex flex-col gap-4 p-5 sm:mt-4 sm:flex-row sm:items-center sm:justify-between lg:px-8 lg:py-[clamp(0.9rem,2.4svh,1.5rem)]">
           <div className="min-w-0">
             <h3 className="ab-line font-display text-[clamp(1.25rem,3.2svh,1.9rem)] leading-tight">{about.focus.title}</h3>
             <p className="ab-line mt-1 text-mist">{about.focus.line}</p>
           </div>
           <a href="#work" data-magnetic onClick={goLearning} className="btn w-full shrink-0 justify-center sm:w-auto sm:self-auto">
             {about.focus.cta}
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
           </a>
         </div>
       </div>

@@ -59,7 +59,7 @@ export default function Timeline() {
 
   return (
     <section id="experience" ref={root} className="relative py-28 md:py-40">
-      <div className="mx-auto max-w-5xl px-6 md:px-12">
+      <div className="mx-auto max-w-5xl px-6 md:px-12 md:max-lg:px-5">
         <h2 id="experience-heading" className="text-[clamp(2.25rem,5vw,4.25rem)]">Where I've worked</h2>
 
         <ol className="tl-track relative mt-16 space-y-10 md:space-y-14">
@@ -77,7 +77,7 @@ export default function Timeline() {
               <li
                 key={job.company}
                 className={`tl-item relative pl-12 md:w-1/2 md:pl-0 ${
-                  isRight ? 'md:ml-auto md:pl-14' : 'md:mr-auto md:pr-14'
+                  isRight ? 'md:ml-auto md:pl-14 md:max-lg:pl-7' : 'md:mr-auto md:pr-14 md:max-lg:pr-7'
                 }`}
               >
                 <span
@@ -87,15 +87,15 @@ export default function Timeline() {
                     isRight ? 'tl-dot-right' : 'tl-dot-left'
                   } absolute size-3.5 scale-75 rounded-full border border-white/40 bg-void top-1/2 -mt-[7px] z-10 transition-colors duration-300 before:absolute before:-inset-4 before:rounded-full before:content-['']`}
                 />
-                <GlassCard className="tl-card p-6 md:p-8">
+                <GlassCard className={`tl-card p-6 md:p-8 md:max-lg:max-w-[21rem] md:max-lg:p-5 ${isRight ? '' : 'md:max-lg:ml-auto'}`}>
                   {/* hover glow: crisp orbiting border + soft halo */}
                   <span aria-hidden="true" className="tl-halo" />
                   <span aria-hidden="true" className="tl-ring" />
 
                   <p className="text-sm text-neon-soft">{job.period}</p>
-                  <h3 className="mt-2 text-2xl md:text-3xl">{job.role}</h3>
-                  <p className="mt-1 font-medium text-frost/90">{job.company}</p>
-                  <p className="mt-4 text-mist">{job.summary}</p>
+                  <h3 className="mt-2 text-2xl md:text-[2.5rem] md:max-lg:mt-1 md:max-lg:text-[1.5rem]">{job.role}</h3>
+                  <p className="mt-1 font-medium text-[0.8rem]  text-mist text-frost/90 md:max-lg:text-[0.875rem]">{job.company}</p>
+                  <p lang="en" className="mt-4 text-justify  text-[0.9rem] leading-[1.65] text-mist md:max-lg:mt-3 md:max-lg:text-[0.8rem] md:max-lg:leading-[1.5]">{job.summary}</p>
                 </GlassCard>
               </li>
             )

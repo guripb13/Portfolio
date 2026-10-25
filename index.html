@@ -12,7 +12,7 @@
     <script>
       (function () {
         var t = 'dark';
-        try { var s = localStorage.getItem('theme'); if (s === 'light' || s === 'dark') t = s; } catch (e) {}
+        try { if (window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light'; } catch (e) {}
         document.documentElement.setAttribute('data-theme', t);
         var m = document.querySelector('meta[name="theme-color"]');
         if (m) m.setAttribute('content', t === 'light' ? '#eef2fb' : '#05060d');
@@ -21,11 +21,178 @@
     <style>
       html, body { background: #05060d; margin: 0 }
       html[data-theme="light"], html[data-theme="light"] body { background: #eef2fb }
+
+      /* ───── Instant boot shell: pure HTML + CSS, paints before any JavaScript arrives ───── */
+      #boot {
+        position: fixed; inset: 0; z-index: 300; display: grid; place-items: center;
+        background: radial-gradient(circle 50vmax at 50% 50%, rgba(61,139,255,.22), transparent 75%), #05060d;
+        color: #eaf0ff; font-family: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        transition: opacity .35s ease;
+      }
+      html[data-theme="light"] #boot {
+        background: radial-gradient(circle 50vmax at 50% 50%, rgba(61,139,255,.18), transparent 75%), #eef2fb;
+        color: #0b1226;
+      }
+      #boot.boot-out { opacity: 0; pointer-events: none }
+      #boot .boot-box { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 24px }
+      #boot .boot-ring { width: min(58vw, 15rem); aspect-ratio: 1; position: relative }
+      #boot .boot-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible }
+      #boot .boot-spin { transform-origin: 100px 100px; animation: boot-rot 1.1s linear infinite }
+      #boot .boot-label { animation: boot-flicker 2.8s ease-in-out infinite } /* very slow, very subtle fade of the word "Loading" */
+      #boot .boot-sub { margin: -16px 0 0; font-size: .6875rem; font-weight: 500; letter-spacing: .22em; text-transform: uppercase; color: #6fa8ff }
+      #boot .boot-name { margin: 4px 0 0; font: 700 clamp(1.5rem, 4vw, 1.875rem)/1.2 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -.01em }
+
+      /* ───── Slow-network overlay: shows only if the loader itself takes more than ~3.5 s ───── */
+      #boot-slow {
+        position: absolute; inset: 0; display: none; place-items: center; padding: 24px;
+        background: rgba(5,6,13,.55);
+        -webkit-backdrop-filter: blur(26px) saturate(140%); backdrop-filter: blur(26px) saturate(140%);
+        box-shadow: inset 0 0 18vmax rgba(0,0,0,.55); /* vignette */
+        opacity: 0; transition: opacity .5s ease;
+      }
+      html[data-theme="light"] #boot-slow { background: rgba(238,242,251,.6); box-shadow: inset 0 0 18vmax rgba(60,80,130,.25) }
+      #boot-slow.show { display: grid }
+      #boot-slow.in { opacity: 1 }
+      #boot-slow .slow-card { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; max-width: 22rem }
+      #boot-slow .slow-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.18); border-top-color: #3d8bff; animation: boot-rot .8s linear infinite }
+      html[data-theme="light"] #boot-slow .slow-spin { border-color: rgba(11,18,38,.15); border-top-color: #3d8bff }
+      #boot-slow .slow-title { font: 700 1.125rem/1.3 "Bricolage Grotesque", system-ui, sans-serif; margin: 6px 0 0 }
+      #boot-slow .slow-msg { font-size: .8125rem; opacity: .75; margin: 0 }
+      #boot-slow .slow-stats { font-size: .75rem; letter-spacing: .04em; font-variant-numeric: tabular-nums; opacity: .8; margin: 6px 0 0; line-height: 1.7; white-space: pre-line }
+      #boot-slow .slow-reload { display: none; margin-top: 10px; padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: inherit; font: inherit; font-size: .8125rem; cursor: pointer }
+      html[data-theme="light"] #boot-slow .slow-reload { border-color: rgba(11,18,38,.3) }
+      #boot-slow .slow-reload.show { display: inline-block }
+
+      @keyframes boot-rot { to { transform: rotate(360deg) } }
+      @keyframes boot-flicker { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .boot-spin, #boot-slow .slow-spin { animation-duration: 3s }
+        #boot .boot-label { animation: none }
+        #boot, #boot-slow { transition: none }
+      }
     </style>
     <title>Guriqbal Singh | Portfolio</title>
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- Instant loader shell (visible immediately, replaced by the real animated Loader once it mounts) -->
+    <div id="boot" role="status" aria-live="polite" aria-label="Loading portfolio">
+      <div class="boot-box">
+        <div class="boot-ring" aria-hidden="true">
+          <svg viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="44" fill="none" stroke="rgba(128,150,200,.22)" stroke-width="8" />
+            <circle class="boot-spin" cx="100" cy="100" r="44" fill="none" stroke="#3d8bff" stroke-width="8" stroke-linecap="round" stroke-dasharray="70 207" />
+            <text class="boot-label" x="100" y="101" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="700" letter-spacing="1" fill="currentColor" font-family="'Bricolage Grotesque', system-ui, sans-serif">Loading</text>
+          </svg>
+        </div>
+        <p class="boot-sub">Presented by</p>
+        <h1 class="boot-name">Guriqbal Singh</h1>
+      </div>
+
+      <div id="boot-slow" aria-live="polite">
+        <div class="slow-card">
+          <div class="slow-spin" aria-hidden="true"></div>
+          <p class="slow-title" id="boot-title">Still loading…</p>
+          <p class="slow-msg" id="boot-msg">The site files are still downloading.</p>
+          <p class="slow-stats" id="boot-stats">Waiting…</p>
+          <button type="button" class="slow-reload" id="boot-reload">Reload</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var SLOW_AFTER_MS = 3500;      // show the blur overlay if the loader hasn't appeared by now
+        var RELOAD_AFTER_MS = 6000;    // show the Reload button once the wait reaches this many milliseconds
+        var boot = document.getElementById('boot');
+        var slow = document.getElementById('boot-slow');
+        var stats = document.getElementById('boot-stats');
+        var titleEl = document.getElementById('boot-title');
+        var msgEl = document.getElementById('boot-msg');
+        var reload = document.getElementById('boot-reload');
+        var iv = 0, tm = 0, done = false, failed = false;
+        var lastBytes = 0, lastT = 0, speed = 0;
+
+        function kb(n) { return n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : Math.round(n / 1024) + ' KB'; }
+
+        // Everything below is measured by the browser, nothing is simulated.
+        function readStats() {
+          var bytes = 0, files = 0;
+          try {
+            var nav = performance.getEntriesByType('navigation')[0];
+            if (nav) { bytes += nav.transferSize || nav.encodedBodySize || 0; files++; }
+            var res = performance.getEntriesByType('resource');
+            for (var i = 0; i < res.length; i++) { bytes += res[i].transferSize || res[i].encodedBodySize || 0; files++; }
+          } catch (e) {}
+
+          var now = performance.now();            // real time since the page started loading
+          var secs = now / 1000;
+
+          // live download speed over the last ~1.5 s
+          if (now - lastT >= 1500) {
+            speed = lastT ? Math.max(0, (bytes - lastBytes) / ((now - lastT) / 1000)) : 0;
+            lastBytes = bytes; lastT = now;
+          }
+
+          var c = navigator.connection;
+          var offline = navigator.onLine === false;
+          var slowNet = c && (c.effectiveType === 'slow-2g' || c.effectiveType === '2g' || c.effectiveType === '3g' || (c.downlink && c.downlink < 1.5));
+
+          if (failed) {
+            titleEl.textContent = "Couldn't load the site";
+            msgEl.textContent = 'A required file failed to download. Please reload the page.';
+          } else if (offline) {
+            titleEl.textContent = "You're offline";
+            msgEl.textContent = 'Check your internet connection. Loading continues when you are back online.';
+          } else {
+            titleEl.textContent = 'Still loading\u2026';
+            msgEl.textContent = slowNet ? 'Your connection looks slow, so the site files are still downloading.' : 'The site files are still downloading.';
+          }
+
+          var line = 'Waiting ' + secs.toFixed(1) + 's \u00b7 ' + files + ' file' + (files === 1 ? '' : 's') + ' requested \u00b7 ' + kb(bytes) + ' received';
+          if (speed > 0) line += ' \u00b7 ' + kb(speed) + '/s';
+          if (c && c.effectiveType) {
+            line += '\nConnection (browser estimate): ' + c.effectiveType.toUpperCase();
+            if (c.downlink) line += ' \u00b7 ~' + c.downlink + ' Mbps';
+            if (c.rtt) line += ' \u00b7 ' + c.rtt + ' ms latency';
+          }
+          if (offline) line += '\nStatus: offline';
+          stats.textContent = line;
+
+          // Reload button: appears after 6 s of waiting, or immediately if a file failed
+          if (failed || now >= RELOAD_AFTER_MS) reload.className = 'slow-reload show';
+        }
+
+        function showOverlay() {
+          if (done) return;
+          slow.className = 'show';
+          requestAnimationFrame(function () { requestAnimationFrame(function () { slow.className = 'show in'; }); });
+          readStats();
+          if (!iv) iv = setInterval(readStats, 300);
+        }
+
+        tm = setTimeout(showOverlay, SLOW_AFTER_MS);
+
+        // A real failure of the app script: tell the person straight away
+        window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          if (t && t.tagName === 'SCRIPT' && !done) { failed = true; clearTimeout(tm); showOverlay(); }
+        }, true);
+        window.addEventListener('offline', function () { if (!done) { clearTimeout(tm); showOverlay(); } });
+
+        reload.addEventListener('click', function () { location.reload(); });
+
+        // Called by the React Loader the moment it is on screen
+        window.__bootDone = function () {
+          if (done) return;
+          done = true;
+          clearTimeout(tm); clearInterval(iv);
+          boot.className = 'boot-out';
+          setTimeout(function () { if (boot.parentNode) boot.parentNode.removeChild(boot); }, 400);
+        };
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
