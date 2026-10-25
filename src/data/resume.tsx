@@ -27,7 +27,7 @@ export interface Job {
   period: string
   summary: string
 }
-
+const B = import.meta.env.BASE_URL
 export const resume = {
   name: 'Guriqbal Singh',
   title: 'Aspiring AI-enabled Software Developer',
