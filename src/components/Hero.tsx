@@ -150,7 +150,7 @@ export default function Hero({ isAppLoaded = true }: HeroProps) {
   with an obsession for <span className="text-neon">minor details.</span>
 </h1>
 
-          <p className="hero-fade text-[clamp(0.95rem,4vw,1.05rem)] leading-[1.6] text-mist">
+          <p className="hero-fade text-[clamp(0.95rem,4vw,1.05rem)] leading-[1.6] text-mist text-justify">
             I&rsquo;m <strong className="font-semibold text-white">{resume.name}</strong> &mdash; a computer science student who cares
             about useful products, precise interfaces, and clean engineering.
           </p>
