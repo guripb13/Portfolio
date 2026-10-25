@@ -141,7 +141,7 @@ export default function Hero({ isAppLoaded = true }: HeroProps) {
             Landscape view: two columns (text | portrait), see LANDSCAPE_CSS.
             (The "GS" logo and the menu button come from the Navbar.) */}
         <div className="hero-phone flex flex-1 flex-col gap-4 pb-3 pt-3 md:hidden">
-          <p className="hero-fade text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-mist">
+          <p className="hero-fade text-[0.7rem] text-center  font-semibold uppercase tracking-[0.22em] text-mist">
             Computer Science <span className="mx-1.5 text-neon-soft">&bull;</span> SLIET
           </p>
 
